@@ -1505,3 +1505,112 @@ Feedback user (screenshot): ada yang janggal di sebelah kiri tombol
       elemen (logo kiri, tombol kanan) — pola navbar standar: logo kiri,
       link section BENAR-benar di tengah, aksi kanan
 - [x] Verifikasi: tsc, eslint, `pnpm build` bersih
+
+## Fase 49 — Pasang Screenshot Asli & Fix Bug Middleware Blokir Asset Publik
+
+User menaruh 3 file screenshot asli (`public/dashboard.jpeg`,
+`budget.jpeg`, `report.jpeg`, semua 2880×1800) menggantikan placeholder
+di landing page.
+
+- [x] `app/page.tsx` — komponen `ScreenshotPlaceholder` diganti
+      `ScreenshotFrame` yang render `next/image` (`fill`,
+      `object-cover object-top`, `aspect-16/10` — pas sama rasio asli
+      2880:1800) di dalam frame browser-chrome yang sama. Dipakai untuk
+      hero visual (`dashboard.jpeg`, `priority`) dan grid 3 screenshot
+      section Tampilan (`dashboard.jpeg`/`budget.jpeg`/`report.jpeg`)
+- [x] Bug ditemukan & diperbaiki: gambar tidak muncul sama sekali di
+      halaman (alt text kelihatan, gambar broken). Root cause: matcher
+      `proxy.ts` cuma explicitly exclude `favicon.ico`/`icon.svg`, TIDAK
+      exclude file publik lain — jadi `dashboard.jpeg`/`budget.jpeg`/
+      `report.jpeg` (dan endpoint `/_next/image` yang memprosesnya) ikut
+      "dilindungi" middleware auth, di-redirect ke `/login` untuk
+      pengunjung yang belum login (persis situasi landing page — publik,
+      belum login) → gambar gagal dimuat, browser cuma render alt text.
+      Terverifikasi lewat curl: `dashboard.jpeg` sebelumnya 307, setelah
+      fix jadi 200
+- [x] Fix generik (bukan cuma whitelist 3 file ini satu-satu): matcher
+      diubah dari daftar nama file eksplisit jadi exclude berdasarkan
+      **ekstensi** (`.ico|.svg|.png|.jpg|.jpeg|.gif|.webp`) — supaya
+      semua asset statis di masa depan otomatis publik tanpa perlu edit
+      `proxy.ts` lagi tiap kali nambah gambar baru
+- [x] Footer landing page — tambah baris kredit developer ("Dibuat oleh
+      Dendy Juliano Juanda", link ke dendyjuliano.com, `target="_blank"`)
+      di sebelah baris copyright
+- [x] Verifikasi: curl ke 3 file screenshot & endpoint `/_next/image`
+      tanpa cookie auth → semua 200; `/dashboard` (halaman terproteksi)
+      tetap 307 tanpa auth (proteksi lain tidak kebobolan); `icon.svg`
+      tetap 200; tsc, eslint, `pnpm build` bersih
+
+## Fase 50 — Toggle Lihat/Sembunyikan Password
+
+Permintaan user: tambah icon show/hide di input password supaya bisa
+lihat password yang diketik.
+
+- [x] `components/password-input.tsx` — komponen baru `PasswordInput`,
+      bungkus `Input` biasa + tombol ikon (`Eye`/`EyeOff`) di kanan
+      dalam input yang toggle `type="password"` ↔ `type="text"` lewat
+      state lokal (`useState`). Tombolnya `type="button"` (supaya tidak
+      ikut submit form) dan `tabIndex={-1}` (supaya tab order tetap
+      lompat ke field berikutnya, bukan berhenti di tombol mata)
+- [x] Dipasang di 3 tempat yang punya input password: `/login`,
+      `/register`, dan form "Tambah Anggota Baru" di `/admin` —
+      menggantikan `<Input type="password">` biasa
+- [x] Verifikasi: tsc, eslint, `pnpm build` bersih
+
+## Fase 51 — Optimasi SEO
+
+Permintaan user: optimasi SEO untuk website (khususnya landing page
+publik di `/`).
+
+- [x] `lib/site.ts` — konstanta `SITE_URL`/`SITE_NAME`/`SITE_DESCRIPTION`
+      terpusat, dipakai bareng oleh metadata, robots, sitemap, OG image
+      (`SITE_URL` baca dari env `NEXT_PUBLIC_SITE_URL`, fallback ke
+      `https://pundi-pundi.vercel.app`)
+- [x] `app/layout.tsx` — `lang="en"` diperbaiki jadi `lang="id"` (konten
+      100% Bahasa Indonesia — sebelumnya salah sejak awal project).
+      Metadata root diperlengkapi: `metadataBase`, title template
+      (`%s | Pundi`), `keywords`, `authors`, `robots: {index,follow}`,
+      `openGraph` & `twitter` lengkap (title/description/locale
+      `id_ID`/site name)
+- [x] `app/opengraph-image.tsx` — OG image branded di-generate lewat
+      `next/og` `ImageResponse` (1200×630, gradient emerald, logo piggy
+      bank + "Pundi" + tagline) — otomatis kepakai Next.js buat
+      `og:image`/`twitter:image` di semua halaman yang tidak override
+      sendiri, tidak perlu file gambar statis manual
+- [x] `app/robots.ts` — generate `robots.txt` dinamis: allow `/`,
+      disallow semua route yang butuh login (`/dashboard`, `/budget`,
+      `/expenses`, `/reports`, `/settings`, `/admin`, `/onboarding`,
+      `/panduan`) + link ke sitemap
+- [x] `app/sitemap.ts` — generate `sitemap.xml`: `/` (priority 1),
+      `/register` (0.6), `/login` (0.3) — cuma halaman yang benar-benar
+      publik & bisa diakses crawler tanpa login
+- [x] Metadata per-halaman:
+      - `app/page.tsx` (landing, Server Component) — `alternates.
+        canonical: "/"` langsung di file
+      - `app/login/layout.tsx` & `app/register/layout.tsx` — layout
+        baru (Server Component) khusus buat nampung `export const
+        metadata` (title/description/canonical per halaman), karena
+        `app/login/page.tsx` & `app/register/page.tsx` sendiri client
+        component ("use client") jadi tidak bisa export metadata
+        langsung — pola standar Next.js buat kasus ini
+- [x] Regenerasi `next typegen` (route types basi setelah nambah
+      `layout.tsx` baru di 2 segment, sama seperti kasus route group di
+      Fase 10)
+- [x] Bug ditemukan & diperbaiki (kelas sama dengan Fase 49 — middleware
+      auth ikut nge-block asset publik): `robots.txt`, `sitemap.xml`,
+      dan `opengraph-image` semuanya sempat ke-redirect 307 ke `/login`
+      karena tidak match pengecualian ekstensi Fase 49 (tidak berekstensi
+      gambar, atau `opengraph-image` sama sekali tidak punya ekstensi di
+      URL). Matcher `proxy.ts` diperluas: exclude eksplisit nama
+      `robots.txt`/`sitemap.xml`/`opengraph-image`/`twitter-image`/
+      `manifest.webmanifest` + tambahan ekstensi `.txt`/`.xml`/
+      `.webmanifest`
+- [x] Verifikasi: curl `/robots.txt` tampilkan isi yang benar; curl
+      `/sitemap.xml` & `/opengraph-image` → 200 (sebelumnya 307);
+      `/opengraph-image` dicek visual (Read tool ke file yang di-save) —
+      render bersih, logo & teks kebaca jelas; meta tag di `<head>`
+      halaman `/` dicek lewat curl — `<title>`, `canonical`, `og:*`,
+      `twitter:*` semua muncul dan terisi benar; `/dashboard` (halaman
+      terproteksi) & `/dashboard.jpeg` (asset publik dari Fase 49) tetap
+      berperilaku sama seperti sebelumnya (regresi nihil); tsc, eslint,
+      `pnpm build` bersih

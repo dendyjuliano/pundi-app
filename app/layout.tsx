@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/sonner";
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,8 +16,39 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pundi",
-  description: "Kelola keuangan keluarga — income, budget, dan pengeluaran harian",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — Kelola Keuangan Keluarga`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  keywords: [
+    "kelola keuangan keluarga",
+    "aplikasi budget keluarga",
+    "catat pengeluaran harian",
+    "aplikasi keuangan pribadi",
+    "budgeting app Indonesia",
+    "Pundi",
+  ],
+  applicationName: SITE_NAME,
+  authors: [{ name: "Dendy Juliano Juanda", url: "https://dendyjuliano.com" }],
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — Kelola Keuangan Keluarga`,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} — Kelola Keuangan Keluarga`,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +58,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="id"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

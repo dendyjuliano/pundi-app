@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
+import type { Metadata } from "next";
 import {
   PiggyBank,
   Wallet,
@@ -6,7 +8,6 @@ import {
   BarChart3,
   Users,
   ShieldCheck,
-  ImageIcon,
   ArrowRight,
   Settings,
   LayoutDashboard,
@@ -15,6 +16,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GradientBlobs } from "@/components/gradient-blobs";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const FEATURES = [
   {
@@ -63,17 +68,21 @@ const STEPS = [
 ];
 
 const SCREENSHOTS = [
-  { label: "Dashboard" },
-  { label: "Budget Bulanan" },
-  { label: "Reports & Grafik" },
+  { label: "Dashboard", src: "/dashboard.jpeg" },
+  { label: "Budget Bulanan", src: "/budget.jpeg" },
+  { label: "Reports & Grafik", src: "/report.jpeg" },
 ];
 
-function ScreenshotPlaceholder({
+function ScreenshotFrame({
   label,
+  src,
   className,
+  priority,
 }: {
   label: string;
+  src: string;
   className?: string;
+  priority?: boolean;
 }) {
   return (
     <div
@@ -84,10 +93,15 @@ function ScreenshotPlaceholder({
         <span className="size-2.5 rounded-full bg-amber-400" />
         <span className="size-2.5 rounded-full bg-emerald-400" />
       </div>
-      <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-muted/30 text-muted-foreground">
-        <ImageIcon className="size-8" />
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs">Ganti dengan screenshot asli</p>
+      <div className="relative aspect-16/10 bg-muted/30">
+        <Image
+          src={src}
+          alt={`Tampilan halaman ${label} di Pundi`}
+          fill
+          priority={priority}
+          className="object-cover object-top"
+          sizes="(min-width: 1024px) 960px, 100vw"
+        />
       </div>
     </div>
   );
@@ -183,7 +197,7 @@ export default function LandingPage() {
 
           {/* Hero visual */}
           <div className="relative mx-auto mt-16 max-w-5xl">
-            <ScreenshotPlaceholder label="Dashboard Pundi" />
+            <ScreenshotFrame label="Dashboard" src="/dashboard.jpeg" priority />
           </div>
         </section>
       </div>
@@ -270,7 +284,7 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {SCREENSHOTS.map((s) => (
-              <ScreenshotPlaceholder key={s.label} label={s.label} />
+              <ScreenshotFrame key={s.label} label={s.label} src={s.src} />
             ))}
           </div>
         </div>
@@ -363,8 +377,19 @@ export default function LandingPage() {
               </ul>
             </div>
           </div>
-          <div className="border-t border-white/10 pt-6 text-xs">
+          <div className="flex flex-col gap-2 border-t border-white/10 pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
             <p>© {new Date().getFullYear()} Pundi. Semua hak dilindungi.</p>
+            <p>
+              Dibuat oleh{" "}
+              <a
+                href="https://dendyjuliano.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-zinc-300 underline underline-offset-2 transition-colors hover:text-white"
+              >
+                Dendy Juliano Juanda
+              </a>
+            </p>
           </div>
         </div>
       </footer>
