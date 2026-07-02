@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(openssl rand *)",
+      "Bash(pnpm add *)",
+      "Bash(node -e ' *)",
+      "Skill(dataviz)",
+      "Skill(dataviz:*)"
+    ]
+  }
+}
