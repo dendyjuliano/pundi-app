@@ -1361,3 +1361,147 @@ sekaligus.
       mengandung entry itu, Total Alokasi Juli balik ke Rp13.200.000
       (dari Rp23.200.000 sebelumnya)
 - [x] Verifikasi: tsc, eslint, `pnpm build` bersih
+
+## Fase 44 — Landing Page Marketing di "/"
+
+Permintaan user: `/` masih boilerplate default create-next-app (belum
+pernah disentuh), diminta jadi landing page marketing yang jelaskan
+keuntungan produk, fitur-fiturnya, dan section screenshot (placeholder
+dulu, nanti diisi gambar asli manual oleh user).
+
+- [x] Ditemukan sekalian: `/` sebelumnya **tidak bisa diakses** oleh
+      pengunjung belum login (proxy redirect ke `/login` karena `/`
+      tidak ada di `publicRoutes`) — jadi landing page lama memang tidak
+      pernah benar-benar tampil ke pengunjung baru
+- [x] `proxy.ts` — `/` ditambahkan ke `publicRoutes`, otomatis
+      memanfaatkan logic redirect yang sudah ada (user yang sudah login
+      buka `/` → auto redirect ke `/dashboard`; belum login → landing
+      page tampil normal)
+- [x] `app/page.tsx` — full rewrite dari boilerplate Next.js jadi
+      landing page marketing:
+      - Nav sticky (logo + tombol Masuk/Daftar Akun)
+      - Hero — headline, subheadline, 2 CTA (Daftar Akun / Masuk)
+      - Section Fitur — grid 6 card (Pemasukan Multi-Sumber, Alokasi
+        Otomatis, Pengeluaran Harian, Laporan & Grafik, Multi-Anggota,
+        Privasi per Grup)
+      - Section "Cara Kerjanya" — 4 step ringkas dengan badge nomor
+      - Section Screenshot — 3 placeholder bergaya browser-frame
+        (header 3 dot + area abu-abu berisi ikon gambar + label + teks
+        "Ganti dengan screenshot asli"), siap ditukar user manual nanti
+      - CTA akhir — card gradient emerald ajakan daftar
+      - Footer minimal
+      Semua pakai komponen & bahasa desain yang sudah ada (`IconChip`,
+      `Card`, `GradientBlobs`) — konsisten dengan `/login`/`/register`
+- [x] Verifikasi lewat curl (bukan Playwright): `/` tanpa login → 200 +
+      mengandung teks "Daftar Akun" (landing page benar-benar tampil);
+      `/dashboard` tanpa login tetap 307 ke `/login` (proteksi lain
+      tidak kebobolan); user baru register+login → akses `/` → 307 ke
+      `/dashboard` (auto-redirect terkonfirmasi); data uji dibersihkan;
+      tsc, eslint, `pnpm build` bersih — `/` tetap muncul sebagai
+      static route (`○`) di output build
+
+## Fase 45 — Landing Page Lebih Modern (gaya Apple-esque)
+
+Feedback user: landing page Fase 44 dinilai terlalu simple, kurang
+menarik/modern — diminta contek gaya Apple/situs modern lainnya.
+
+- [x] Hero — badge pill kecil di atas headline ("✨ Kelola keuangan
+      keluarga jadi lebih mudah"), headline diperbesar drastis
+      (`text-5xl` s/d `text-7xl`, `tracking-tight`, `leading-[1.05]`),
+      1 kata kunci ("keluarga") diberi gradient text via `bg-clip-text`
+      — dan hero screenshot placeholder besar diletakkan langsung di
+      bawah CTA sebagai focal point visual (pola umum hero produk
+      modern: headline besar → visual besar)
+- [x] Section Fitur diubah jadi **dark section** (`bg-zinc-950`, teks
+      putih) untuk kontras kuat dari section terang di sekitarnya —
+      pola "light → dark → light" yang umum dipakai situs modern
+      (Apple, dsb) supaya halaman tidak terasa monoton satu warna dari
+      atas ke bawah. Icon chip dibikin custom versi gelap
+      (`bg-emerald-500/15 text-emerald-400`, bukan `IconChip` biasa
+      yang didesain buat background terang)
+- [x] Section "Cara Kerja" & "Tampilan" (screenshot) dapat eyebrow text
+      kecil huruf kapital ("FITUR", "CARA KERJA", "TAMPILAN") di atas
+      tiap heading section — pola umum landing page modern untuk
+      hierarki visual yang lebih jelas
+- [x] Step "Cara Kerja" dapat garis penghubung horizontal tipis di
+      belakang tiap ikon (gaya timeline) dan badge nomor bulat kecil di
+      pojok tiap ikon
+- [x] Tombol CTA (nav, hero, CTA akhir) diubah jadi `rounded-full`
+      (pill shape) dengan padding horizontal lebih lebar + shadow lebih
+      tebal — kesan lebih "modern SaaS" dibanding rounded-lg standar
+- [x] Spacing tiap section diperbesar (`py-16/20` → `py-24`) supaya
+      lebih lega, konsisten dengan situs modern yang tidak takut pakai
+      whitespace
+- [x] Tidak menambah dependency baru (tanpa framer-motion/animasi
+      scroll-trigger) — efek modern dicapai murni lewat tipografi,
+      spacing, kontras warna, dan shadow, bukan JS animasi, supaya
+      tetap ringan dan konsisten dengan stack yang sudah ada
+- [x] Verifikasi: tsc, eslint, `pnpm build` bersih; curl ke `/`
+      mengonfirmasi semua section baru ter-render (teks "bukan drama
+      bulanan", "Semua yang kamu butuhkan", "4 langkah singkat",
+      "Modern, gampang dipakai", "Siap mulai kelola" semuanya muncul)
+
+## Fase 46 — Navbar & Footer Landing Page Disesuaikan
+
+Feedback user: navbar & footer landing page (Fase 44/45) dirasa kurang
+nyambung dengan gaya konten yang sudah lebih modern.
+
+- [x] Navbar diubah dari bar penuh lebar (`border-b`, sudut lurus) jadi
+      **floating pill navbar** — `sticky top-4`, `max-w-4xl`,
+      `rounded-full`, shadow + backdrop-blur, terpisah dari tepi layar
+      (pola umum situs modern seperti Linear/Vercel/Framer, kesan lebih
+      "sengaja didesain" dibanding bar penuh polos)
+  - Tambah link navigasi ke section (`Fitur`/`Cara Kerja`/`Tampilan`,
+    disembunyikan di mobile) — sebelumnya nav cuma berisi tombol
+    Masuk/Daftar tanpa link internal apa pun
+  - Section terkait dapat `id` (`#fitur`, `#cara-kerja`, `#tampilan`)
+    supaya link-nya benar-benar mengarah ke bagian yang sesuai
+- [x] Footer diubah dari 1 baris tipis (logo + copyright) jadi **footer
+      gelap multi-kolom** (`bg-zinc-950`, senada dengan section Fitur
+      yang sudah dark) — kolom brand blurb, kolom "Produk" (link ke
+      section yang sama), kolom "Akun" (Masuk/Daftar Akun), lalu baris
+      copyright terpisah dengan border-top tipis. Footer gelap ini
+      membuat halaman "dibingkai" dark-hero-dark (Fitur dark di tengah,
+      Footer dark di akhir) alih-alih berakhir tiba-tiba di baris tipis
+- [x] Verifikasi: tsc, eslint, `pnpm build` bersih; curl ke `/`
+      mengonfirmasi `id="fitur"`/`id="cara-kerja"`/`id="tampilan"` dan
+      `href="#fitur"` cocok, serta teks "Produk"/"Akun" (kolom footer
+      baru) muncul di HTML
+
+## Fase 47 — Bug: Strip Putih di Atas Navbar Landing Page
+
+Bug dilaporkan user (screenshot): ada strip putih penuh lebar di paling
+atas halaman, di belakang floating navbar — mengganggu karena beda
+warna dari gradient hero di bawahnya.
+
+- [x] Root cause: gradient (`bg-linear-to-b from-emerald-50 via-
+      background to-background`) sebelumnya cuma dipasang di `<section>`
+      Hero, bukan di wrapper terluar. Karena `<header>` (navbar
+      mengambang) ada di DOM SEBELUM section Hero, area di belakang
+      navbar tidak ikut ter-cover gradient — cuma background halaman
+      default (putih polos) yang kelihatan di situ
+- [x] Fix: pindahkan class gradient ke `<div className="min-h-screen">`
+      (wrapper terluar) supaya gradient mulai dari y=0 (termasuk di
+      belakang navbar), dan hapus duplikasi class gradient dari
+      `<section>` Hero (cukup `relative overflow-hidden` buat clipping
+      `GradientBlobs`, warnanya sekarang tembus dari parent)
+- [x] Verifikasi: tsc, eslint, `pnpm build` bersih; curl ke `/`
+      mengonfirmasi class gradient sudah pindah ke wrapper
+      `min-h-screen` terluar
+
+## Fase 48 — Navbar: Link Section Tidak Center
+
+Feedback user (screenshot): ada yang janggal di sebelah kiri tombol
+"Masuk" di navbar.
+
+- [x] Root cause: 3 grup flex (logo, link section, tombol) dipasang
+      `justify-between` — karena grup logo & grup tombol beda lebar,
+      grup link (Fitur/Cara Kerja/Tampilan) ikut ke-geser condong ke
+      kiri alih-alih benar-benar di tengah pill, menyisakan jarak
+      kosong yang janggal persis sebelum "Masuk"
+- [x] Fix: grup `<nav>` link section diubah jadi `absolute left-1/2
+      -translate-x-1/2` (di-center secara independen terhadap lebar
+      grup logo/tombol), `justify-between` sekarang cuma berlaku ke 2
+      elemen (logo kiri, tombol kanan) — pola navbar standar: logo kiri,
+      link section BENAR-benar di tengah, aksi kanan
+- [x] Verifikasi: tsc, eslint, `pnpm build` bersih
