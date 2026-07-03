@@ -337,24 +337,29 @@ export default function BudgetPage() {
                 key={cat._id}
                 className="rounded-xl border bg-muted/30 px-4 py-2.5 space-y-2"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <span
                     className={`size-2 rounded-full shrink-0 ${ALLOCATION_TYPE_DOT[cat.type]}`}
                   />
-                  <Label className="flex-1 font-medium">
-                    <span className="flex items-center gap-2">
-                      {cat.name}
-                      <Badge variant="secondary" className="text-[10px]">
+                  <Label className="flex-1 min-w-0 font-medium">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="truncate">{cat.name}</span>
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 text-[10px]"
+                      >
                         {ALLOCATION_TYPE_LABEL[cat.type]}
                       </Badge>
                     </span>
                   </Label>
-                  <CurrencyInput
-                    value={amount}
-                    onValueChange={(v) => updateAllocation(cat._id, v)}
-                    disabled={cat.type === "food"}
-                    className="w-44 bg-background disabled:bg-muted"
-                  />
+                  <div className="w-full sm:w-44">
+                    <CurrencyInput
+                      value={amount}
+                      onValueChange={(v) => updateAllocation(cat._id, v)}
+                      disabled={cat.type === "food"}
+                      className="w-full bg-background disabled:bg-muted"
+                    />
+                  </div>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-background overflow-hidden ml-5">
                   <div
@@ -364,28 +369,32 @@ export default function BudgetPage() {
                 </div>
 
                 {isInvest && (
-                  <div className="flex items-center gap-3 ml-5 pt-1">
-                    <Label className="flex-1 text-xs text-muted-foreground flex items-center gap-1.5">
-                      <TrendingUp className="size-3.5" />
+                  <div className="flex flex-wrap items-center gap-3 ml-5 pt-1">
+                    <Label className="flex-1 min-w-0 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <TrendingUp className="size-3.5 shrink-0" />
                       Realisasi
                     </Label>
                     <Badge
                       variant="secondary"
                       className={
                         realizedDiff >= 0
-                          ? "bg-emerald-100 text-emerald-700 text-[10px]"
-                          : "bg-amber-100 text-amber-700 text-[10px]"
+                          ? "shrink-0 whitespace-nowrap bg-emerald-100 text-[10px] text-emerald-700"
+                          : "shrink-0 whitespace-nowrap bg-amber-100 text-[10px] text-amber-700"
                       }
                     >
                       {realizedDiff >= 0
                         ? "Sesuai rencana"
                         : `Kurang ${formatRupiah(-realizedDiff)}`}
                     </Badge>
-                    <CurrencyInput
-                      value={realized}
-                      onValueChange={(v) => updateAllocationRealized(cat._id, v)}
-                      className="w-44 bg-background"
-                    />
+                    <div className="w-full sm:w-44">
+                      <CurrencyInput
+                        value={realized}
+                        onValueChange={(v) =>
+                          updateAllocationRealized(cat._id, v)
+                        }
+                        className="w-full bg-background"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
