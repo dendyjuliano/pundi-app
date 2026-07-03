@@ -15,6 +15,7 @@ import {
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -23,8 +24,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { IconChip } from "@/components/icon-chip";
 import { CurrencyInput } from "@/components/currency-input";
 import { PushNotificationToggle } from "@/components/push-notification-toggle";
+import { AddExpenseDialog } from "@/components/add-expense-dialog";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import {
-  Trash2,
   UtensilsCrossed,
   ArrowDownToLine,
   Layers,
@@ -32,6 +34,9 @@ import {
   Check,
   X,
   Bell,
+  Repeat,
+  Pause,
+  Play,
 } from "lucide-react";
 
 type IncomeCategory = { _id: string; name: string };
@@ -45,6 +50,13 @@ type DailyBudgetSetting = {
   amountPerDay: number;
   effectiveFrom: string;
 } | null;
+type RecurringExpense = {
+  _id: string;
+  name: string;
+  amount: number;
+  dayOfMonth: number;
+  active: boolean;
+};
 
 const ALLOCATION_TYPE_LABEL: Record<string, string> = {
   fixed: "Fixed Cost",
@@ -61,13 +73,31 @@ export default function SettingsPage() {
     AllocationCategory[]
   >([]);
   const [dailyBudget, setDailyBudget] = useState<DailyBudgetSetting>(null);
+  const [recurringExpenses, setRecurringExpenses] = useState<
+    RecurringExpense[]
+  >([]);
   const [loading, setLoading] = useState(true);
+
+  // Kalau tanggal jatuh tempo yang baru ditambahkan itu PAS hari ini,
+  // reminder push baru bakal kekirim di siklus cron berikutnya (bisa
+  // besok, atau malah bulan depan kalau jam 12 siang sudah lewat) —
+  // jadi kejadian bulan ini bisa kelewat. Tawarin konfirmasi langsung
+  // saat itu juga, pakai dialog yang sama (tetap semi-otomatis, bukan
+  // auto-catat) biar tidak nunggu notifikasi buat transaksi bulan ini.
+  const [recurringConfirmPrefill, setRecurringConfirmPrefill] = useState<{
+    id: string;
+    amount: number;
+    note: string;
+  } | null>(null);
 
   const [incomeName, setIncomeName] = useState("");
   const [allocationName, setAllocationName] = useState("");
   const [allocationType, setAllocationType] =
     useState<AllocationCategory["type"]>("fixed");
   const [newAmountPerDay, setNewAmountPerDay] = useState(0);
+  const [recurringName, setRecurringName] = useState("");
+  const [recurringAmount, setRecurringAmount] = useState(0);
+  const [recurringDay, setRecurringDay] = useState("1");
 
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
   const [editingIncomeName, setEditingIncomeName] = useState("");
@@ -79,15 +109,25 @@ export default function SettingsPage() {
   const [editingAllocationType, setEditingAllocationType] =
     useState<AllocationCategory["type"]>("fixed");
 
+  const [editingRecurringId, setEditingRecurringId] = useState<string | null>(
+    null
+  );
+  const [editingRecurringName, setEditingRecurringName] = useState("");
+  const [editingRecurringAmount, setEditingRecurringAmount] = useState(0);
+  const [editingRecurringDay, setEditingRecurringDay] = useState("1");
+
   async function loadAll() {
-    const [incomeRes, allocationRes, budgetRes] = await Promise.all([
-      fetch("/api/income-categories"),
-      fetch("/api/allocation-categories"),
-      fetch("/api/daily-budget-setting"),
-    ]);
+    const [incomeRes, allocationRes, budgetRes, recurringRes] =
+      await Promise.all([
+        fetch("/api/income-categories"),
+        fetch("/api/allocation-categories"),
+        fetch("/api/daily-budget-setting"),
+        fetch("/api/recurring-expenses"),
+      ]);
     setIncomeCategories(await incomeRes.json());
     setAllocationCategories(await allocationRes.json());
     setDailyBudget(await budgetRes.json());
+    setRecurringExpenses(await recurringRes.json());
   }
 
   useEffect(() => {
@@ -228,6 +268,102 @@ export default function SettingsPage() {
     loadAll();
   }
 
+  async function handleAddRecurringExpense(e: React.FormEvent) {
+    e.preventDefault();
+    if (!recurringName.trim() || recurringAmount <= 0) return;
+    const res = await fetch("/api/recurring-expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: recurringName.trim(),
+        amount: recurringAmount,
+        dayOfMonth: Number(recurringDay),
+      }),
+    });
+    if (!res.ok) {
+      toast.error("Gagal menambah pengeluaran berulang");
+      return;
+    }
+    const created = await res.json();
+    const dueToday = created.dayOfMonth === new Date().getDate();
+    toast.success(
+      dueToday
+        ? `"${recurringName.trim()}" ditambahkan — tanggalnya hari ini, langsung konfirmasi di form yang muncul`
+        : `"${recurringName.trim()}" ditambahkan`
+    );
+
+    if (dueToday) {
+      setRecurringConfirmPrefill({
+        id: created._id,
+        amount: created.amount,
+        note: created.name,
+      });
+    }
+
+    setRecurringName("");
+    setRecurringAmount(0);
+    setRecurringDay("1");
+    loadAll();
+  }
+
+  function startEditRecurringExpense(item: RecurringExpense) {
+    setEditingRecurringId(item._id);
+    setEditingRecurringName(item.name);
+    setEditingRecurringAmount(item.amount);
+    setEditingRecurringDay(String(item.dayOfMonth));
+  }
+
+  function cancelEditRecurringExpense() {
+    setEditingRecurringId(null);
+    setEditingRecurringName("");
+  }
+
+  async function handleSaveRecurringExpense(id: string) {
+    if (!editingRecurringName.trim() || editingRecurringAmount <= 0) return;
+    const res = await fetch(`/api/recurring-expenses/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editingRecurringName.trim(),
+        amount: editingRecurringAmount,
+        dayOfMonth: Number(editingRecurringDay),
+      }),
+    });
+    if (!res.ok) {
+      toast.error("Gagal mengubah pengeluaran berulang");
+      return;
+    }
+    toast.success("Pengeluaran berulang diperbarui");
+    cancelEditRecurringExpense();
+    loadAll();
+  }
+
+  async function handleToggleRecurringActive(item: RecurringExpense) {
+    const res = await fetch(`/api/recurring-expenses/${item._id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !item.active }),
+    });
+    if (!res.ok) {
+      toast.error("Gagal mengubah status");
+      return;
+    }
+    toast.success(item.active ? "Dinonaktifkan" : "Diaktifkan lagi");
+    loadAll();
+  }
+
+  async function handleDeleteRecurringExpense(id: string) {
+    const res = await fetch(`/api/recurring-expenses/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      toast.error("Gagal menghapus pengeluaran berulang");
+      return;
+    }
+    toast.success("Pengeluaran berulang dihapus");
+    loadAll();
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -240,6 +376,25 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      {recurringConfirmPrefill && (
+        <AddExpenseDialog
+          key={recurringConfirmPrefill.id}
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setRecurringConfirmPrefill(null);
+          }}
+          initialAmount={recurringConfirmPrefill.amount}
+          initialNote={recurringConfirmPrefill.note}
+          title="Konfirmasi Pengeluaran Berulang"
+          description={`Tanggal jatuh tempo "${recurringConfirmPrefill.note}" pas hari ini — cek dulu nominalnya (bisa diedit) sebelum disimpan`}
+          confirmOnClose
+          onSaved={() => {
+            setRecurringConfirmPrefill(null);
+            toast.success("Langsung tercatat untuk bulan ini");
+          }}
+        />
+      )}
+
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
@@ -365,14 +520,11 @@ export default function SettingsPage() {
                       >
                         <Pencil className="size-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDeleteIncomeCategory(c._id)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <ConfirmDeleteButton
+                        title={`Hapus kategori "${c.name}"?`}
+                        description="Kategori ini akan dihapus dari daftar, tapi jumlah yang sudah pernah tersimpan di bulan-bulan sebelumnya tetap ada (ditandai sebagai kategori terhapus, tidak ikut hilang)."
+                        onConfirm={() => handleDeleteIncomeCategory(c._id)}
+                      />
                     </div>
                   </li>
                 )
@@ -479,14 +631,11 @@ export default function SettingsPage() {
                       >
                         <Pencil className="size-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDeleteAllocationCategory(c._id)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <ConfirmDeleteButton
+                        title={`Hapus kategori "${c.name}"?`}
+                        description="Kategori ini akan dihapus dari daftar, tapi jumlah yang sudah pernah tersimpan di bulan-bulan sebelumnya tetap ada (ditandai sebagai kategori terhapus, tidak ikut hilang)."
+                        onConfirm={() => handleDeleteAllocationCategory(c._id)}
+                      />
                     </div>
                   </li>
                 )
@@ -516,6 +665,168 @@ export default function SettingsPage() {
                 <SelectItem value="food">Makan</SelectItem>
                 <SelectItem value="invest">Investasi</SelectItem>
                 <SelectItem value="other">Lain-lain</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="submit">Tambah</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Recurring Expenses */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+          <IconChip icon={Repeat} color="amber" />
+          <div>
+            <CardTitle>Pengeluaran Berulang</CardTitle>
+            <CardDescription>
+              Subscription/tagihan bulanan — kamu dapat notifikasi buat
+              konfirmasi tiap tanggal jatuh tempo (tidak otomatis
+              tercatat begitu saja). Kalau tanggal yang dipilih pas
+              hari ini, form konfirmasinya langsung muncul begitu
+              ditambahkan
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {recurringExpenses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Belum ada pengeluaran berulang
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {recurringExpenses.map((item) =>
+                editingRecurringId === item._id ? (
+                  <li
+                    key={item._id}
+                    className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border bg-muted/30"
+                  >
+                    <Input
+                      autoFocus
+                      value={editingRecurringName}
+                      onChange={(e) =>
+                        setEditingRecurringName(e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter")
+                          handleSaveRecurringExpense(item._id);
+                        if (e.key === "Escape") cancelEditRecurringExpense();
+                      }}
+                      className="h-9 bg-background"
+                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <CurrencyInput
+                        value={editingRecurringAmount}
+                        onValueChange={setEditingRecurringAmount}
+                        className="h-9 w-32 bg-background"
+                      />
+                      <Select
+                        value={editingRecurringDay}
+                        onValueChange={setEditingRecurringDay}
+                      >
+                        <SelectTrigger className="h-9 w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map(
+                            (d) => (
+                              <SelectItem key={d} value={String(d)}>
+                                Tgl {d}
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-emerald-600 hover:text-emerald-700 shrink-0"
+                        onClick={() => handleSaveRecurringExpense(item._id)}
+                      >
+                        <Check className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-muted-foreground shrink-0"
+                        onClick={cancelEditRecurringExpense}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  </li>
+                ) : (
+                  <li
+                    key={item._id}
+                    className={`px-4 py-2.5 flex items-center justify-between text-sm rounded-xl border bg-muted/30 hover:bg-muted/60 transition-colors ${
+                      item.active ? "" : "opacity-60"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      {item.name}
+                      <Badge variant="secondary">
+                        {formatRupiah(item.amount)}
+                      </Badge>
+                      <Badge variant="secondary">Tgl {item.dayOfMonth}</Badge>
+                      {!item.active && (
+                        <Badge variant="secondary">Nonaktif</Badge>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleToggleRecurringActive(item)}
+                      >
+                        {item.active ? (
+                          <Pause className="size-4" />
+                        ) : (
+                          <Play className="size-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => startEditRecurringExpense(item)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <ConfirmDeleteButton
+                        title={`Hapus "${item.name}"?`}
+                        description="Jadwal pengingat ini akan dihapus. Pengeluaran yang sudah pernah dicatat dari item ini sebelumnya tidak ikut terhapus."
+                        onConfirm={() => handleDeleteRecurringExpense(item._id)}
+                      />
+                    </div>
+                  </li>
+                )
+              )}
+            </ul>
+          )}
+          <form
+            onSubmit={handleAddRecurringExpense}
+            className="flex flex-col sm:flex-row sm:items-center gap-2"
+          >
+            <Input
+              placeholder="Nama (mis. Netflix)"
+              value={recurringName}
+              onChange={(e) => setRecurringName(e.target.value)}
+            />
+            <CurrencyInput
+              value={recurringAmount}
+              onValueChange={setRecurringAmount}
+              className="sm:w-36"
+            />
+            <Select value={recurringDay} onValueChange={setRecurringDay}>
+              <SelectTrigger className="sm:w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <SelectItem key={d} value={String(d)}>
+                    Tgl {d}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button type="submit">Tambah</Button>

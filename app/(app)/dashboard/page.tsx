@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { formatRupiah } from "@/lib/format";
 import {
@@ -787,6 +787,7 @@ function YearlyDashboard({
 
 function DashboardContent() {
   const { data: session } = useSession();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const isAdmin = session?.user?.role === "admin";
   const currentUserId = session?.user?.id ?? "";
@@ -805,6 +806,32 @@ function DashboardContent() {
     null
   );
   const [loading, setLoading] = useState(true);
+
+  // Dipicu dari link notifikasi push "pengeluaran berulang jatuh tempo"
+  // (?confirmRecurring=<id>) — ambil detail item itu lalu buka
+  // AddExpenseDialog dalam mode controlled, ter-prefill, biar user tinggal
+  // review/edit sebelum benar-benar mencatatnya (bukan auto-create).
+  const confirmRecurringId = searchParams.get("confirmRecurring");
+  const [recurringPrefill, setRecurringPrefill] = useState<{
+    id: string;
+    amount: number;
+    note: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!confirmRecurringId) return;
+    (async () => {
+      const res = await fetch(`/api/recurring-expenses/${confirmRecurringId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRecurringPrefill({
+          id: confirmRecurringId,
+          amount: data.amount,
+          note: data.name,
+        });
+      }
+    })();
+  }, [confirmRecurringId]);
 
   // Admin only: load the member list once session is ready, for the "lihat
   // dashboard anggota lain" selector.
@@ -851,6 +878,25 @@ function DashboardContent() {
 
   return (
     <div className="space-y-6">
+      {recurringPrefill && (
+        <AddExpenseDialog
+          key={recurringPrefill.id}
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              setRecurringPrefill(null);
+              router.replace("/dashboard");
+            }
+          }}
+          initialAmount={recurringPrefill.amount}
+          initialNote={recurringPrefill.note}
+          title="Konfirmasi Pengeluaran Berulang"
+          description={`"${recurringPrefill.note}" jatuh tempo hari ini — cek dulu nominalnya (bisa diedit) sebelum disimpan`}
+          confirmOnClose
+          onSaved={() => refresh()}
+        />
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">

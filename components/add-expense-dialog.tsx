@@ -29,6 +29,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CurrencyInput } from "@/components/currency-input";
 
 function parseISODate(iso: string) {
@@ -52,16 +62,78 @@ function todayISO() {
 export function AddExpenseDialog({
   trigger,
   onSaved,
+  open: controlledOpen,
+  onOpenChange,
+  initialAmount,
+  initialNote,
+  title,
+  description,
+  confirmOnClose,
 }: {
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
   onSaved?: (dateISO: string) => void;
+  // Controlled-mode buat dipakai dari luar (mis. Dashboard buka dialog ini
+  // sendiri lewat query param `?confirmRecurring=`, tanpa ada trigger
+  // klik) — kalau tidak dikasih, komponen ini tetap jalan uncontrolled
+  // (perilaku lama, buka lewat klik `trigger`) supaya backward-compatible.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  initialAmount?: number;
+  initialNote?: string;
+  // Override judul/deskripsi modal — dipakai pas dialog ini dibuka otomatis
+  // dari alur konfirmasi pengeluaran berulang, biar jelas KENAPA modalnya
+  // muncul tiba-tiba (bukan cuma "Tambah Pengeluaran" generik yang bikin
+  // user kaget karena tidak jelas konteksnya).
+  title?: string;
+  description?: string;
+  // Kalau true, klik backdrop/X/Escape tidak langsung nutup dialog —
+  // munculin AlertDialog konfirmasi dulu. Dipakai khusus alur konfirmasi
+  // pengeluaran berulang: kalau ke-close tidak sengaja, dialog itu TIDAK
+  // muncul lagi (beda dari tombol "Input Pengeluaran" biasa yang bisa
+  // diklik ulang kapan saja) — jadi harus ada pengaman sebelum benar-benar
+  // menutupnya.
+  confirmOnClose?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen ?? internalOpen;
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  function setOpen(next: boolean) {
+    onOpenChange?.(next);
+    setInternalOpen(next);
+  }
+  // Dipasang ke <Dialog onOpenChange>, jadi cuma nangkep percobaan nutup
+  // dari Radix sendiri (backdrop click/X/Escape) — sengaja BUKAN dipanggil
+  // dari handleSubmit (yang manggil setOpen(false) langsung), supaya close
+  // setelah berhasil simpan tidak ikut ke-gate konfirmasi ini.
+  function handleDialogOpenChange(next: boolean) {
+    // AlertDialog konfirmasi itu portal TERPISAH dari Dialog utama ini —
+    // dari sudut pandang Dialog, klik APA PUN di dalam AlertDialog (mis.
+    // tombol "Lanjut isi") kelihatan kayak "klik di luar" dan otomatis
+    // memicu onOpenChange(false) di sini juga. Kalau tidak di-guard, ini
+    // nge-timpa balik `setCloseConfirmOpen(false)` yang barusan dipanggil
+    // Radix buat nutup AlertDialog-nya sendiri — hasilnya AlertDialog
+    // kelihatan "nggak mau ketutup" pas "Lanjut isi" diklik. Selama
+    // AlertDialog konfirmasi masih terbuka, abaikan sinyal ini sepenuhnya.
+    if (closeConfirmOpen) return;
+    if (next || !confirmOnClose) {
+      setOpen(next);
+      return;
+    }
+    setCloseConfirmOpen(true);
+  }
+
   const [dateOpen, setDateOpen] = useState(false);
   const [date, setDate] = useState(todayISO());
-  const [category, setCategory] = useState<"makan" | "lain-lain">("makan");
-  const [amount, setAmount] = useState(0);
-  const [note, setNote] = useState("");
+  // Prefill lewat lazy initializer (bukan effect yang sync prop ke state)
+  // — kalau dipakai dari confirm-recurring flow, parent WAJIB kasih `key`
+  // yang beda tiap recurring expense biar komponen ini remount fresh dan
+  // initializer ini kepanggil ulang dengan nilai yang benar. Nominal &
+  // catatan sengaja tetap bisa diedit user sebelum benar-benar disimpan.
+  const [category, setCategory] = useState<"makan" | "lain-lain">(
+    initialNote !== undefined ? "lain-lain" : "makan"
+  );
+  const [amount, setAmount] = useState(initialAmount ?? 0);
+  const [note, setNote] = useState(initialNote ?? "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -104,14 +176,14 @@ export function AddExpenseDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Tambah Pengeluaran</DialogTitle>
+            <DialogTitle>{title ?? "Tambah Pengeluaran"}</DialogTitle>
             <DialogDescription>
-              Catat pengeluaran makan atau lain-lain hari ini
+              {description ?? "Catat pengeluaran makan atau lain-lain hari ini"}
             </DialogDescription>
           </DialogHeader>
 
@@ -219,6 +291,30 @@ export function AddExpenseDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <AlertDialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Batalkan konfirmasi ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kalau ditutup, kamu perlu menambahkannya lagi secara manual
+              lewat &quot;Tambah Pengeluaran&quot; kalau masih mau
+              mencatatnya bulan ini.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Lanjut isi</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setCloseConfirmOpen(false);
+                setOpen(false);
+              }}
+            >
+              Ya, batalkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

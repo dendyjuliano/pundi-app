@@ -1944,3 +1944,150 @@ sebelahnya, walau keduanya sama-sama `h-10` di CSS.
       lagi dipakai user buat tes notifikasi, dihindari supaya tidak
       ganggu sesi aktifnya) — cukup diverifikasi tsc/eslint + smoke
       test curl ke dev server yang jalan (Turbopack hot-reload)
+
+## Fase 56 — Pengeluaran Berulang (Recurring Expenses)
+
+User pilih arah pengembangan berikutnya: kurangi friksi input manual
+buat pengeluaran yang berulang tiap bulan (subscription, tagihan).
+Direncanakan lewat plan mode dulu sebelum eksekusi — dua keputusan
+scope yang dikonfirmasi user: **semi-otomatis** (push notification
+"konfirmasi?", bukan auto-create langsung — hindari resiko nominal
+salah kalau tagihan berubah kayak listrik) dan kategori **selalu
+"Lain-lain"** (karena "Makan" sudah punya sistem jatah harian sendiri).
+
+- [x] `models/RecurringExpense.ts` — `{userId, name, amount,
+      dayOfMonth (1-31), active (default true)}`, timestamps, index
+      `userId`. Ikutin persis konvensi `AllocationCategory.ts`
+- [x] `app/api/recurring-expenses/route.ts` (GET list, POST create) +
+      `[id]/route.ts` (GET single — dipakai buat prefill dialog
+      konfirmasi, PATCH, DELETE) — semua di-scope `{_id, userId}`,
+      ikutin pola persis `allocation-categories` routes
+- [x] `app/(app)/settings/page.tsx` — card baru **"Pengeluaran
+      Berulang"**, CRUD lengkap (list + edit-inline + delete + toggle
+      aktif/nonaktif pakai icon Pause/Play) replikasi persis pola
+      Kategori Alokasi yang sudah ada, cuma nambah `CurrencyInput`
+      (nominal) dan `Select` tanggal 1-31 (BUKAN native number/date
+      input — konsisten sama fix Fase 55 yang menghindari kontrol
+      native karena rendering tidak konsisten lintas platform)
+- [x] `app/api/cron/daily-reminder/route.ts` — diperluas LAGI (bukan
+      cron/`vercel.json` entry baru, konsisten sama pola Fase 54b):
+      query `RecurringExpense` yang `active:true` &amp;
+      `dayOfMonth === wibNow(now).getUTCDate()`, dikelompokkan per user
+      (satu user bisa punya beberapa item jatuh tempo bareng hari yang
+      sama), kirim push per-item ke `/dashboard?confirmRecurring=<id>`.
+      **Reminder cuma dikirim SEKALI di tanggal jatuh tempo** (tidak
+      ada logic "nge-nag" berulang tiap hari kalau kelewat, beda dari
+      pola `budgetPending` — sengaja simple di V1, biar tidak
+      menyebabkan notifikasi spam kalau user lupa konfirmasi berhari-
+      hari). Response cron nambah field `recurringDue` &amp;
+      `recurringReminderSent`
+- [x] `components/add-expense-dialog.tsx` — di-extend dukung mode
+      **controlled** (`open`/`onOpenChange` opsional dari parent,
+      `trigger` jadi opsional) + prefill (`initialAmount`/
+      `initialNote`) buat alur konfirmasi dari notifikasi. Prefill
+      dilakukan lewat **lazy initializer** di `useState`
+      (`useState(initialAmount ?? 0)`), BUKAN `useEffect` yang sync
+      prop ke state — supaya tidak kena lint rule
+      `react-hooks/set-state-in-effect` (React modern merekomendasikan
+      key-remount buat kasus reset-state-dari-prop kayak gini, bukan
+      effect). Konsekuensinya: pemanggil WAJIB kasih `key` yang unik
+      per item (mis. `key={recurringPrefill.id}`) supaya komponennya
+      remount fresh tiap kali dibuka buat item yang berbeda. Mode lama
+      (uncontrolled, dipakai tombol "Input Pengeluaran" Fase 40) tetap
+      jalan tanpa perubahan — backward-compatible penuh
+- [x] `app/(app)/dashboard/page.tsx` — baca query param
+      `?confirmRecurring=<id>` (`useSearchParams`), `GET
+      /api/recurring-expenses/<id>` buat ambil detail, render
+      `AddExpenseDialog` versi controlled dengan `key`+prefill. Setelah
+      submit (`onSaved`) refresh data Dashboard; setelah dialog ditutup
+      dengan cara apa pun (`onOpenChange(false)`) query param
+      dibersihkan lewat `router.replace("/dashboard")` biar refresh
+      halaman tidak membuka dialog itu lagi
+- [x] Verifikasi lewat akun uji lengkap (register, subscribe fake push,
+      curl langsung ke tiap route):
+      - Buat `RecurringExpense` dengan `dayOfMonth` = tanggal WIB hari
+        ini → cron → `recurringDue:1` (terdeteksi benar)
+      - `GET /api/recurring-expenses/<id>` balas data yang benar
+      - Cek expenses KOSONG sebelum simulasi tap-konfirmasi → POST
+        `/api/expenses` (persis payload yang bakal dikirim dialog) →
+        expenses TERISI benar sesudahnya — konfirmasi semi-otomatis
+        (tidak ada auto-create diam-diam dari cron)
+      - Ganti `dayOfMonth` ke tanggal lain (bukan hari ini) → cron →
+        `recurringDue:0` (dikecualikan benar)
+      - Kembalikan `dayOfMonth` ke hari ini TAPI set `active:false` →
+        cron → `recurringDue:0` (dikecualikan meski tanggal cocok,
+        karena nonaktif)
+      - Data uji &amp; subscription dibersihkan; dicek juga tidak ada
+        sisa data uji lain nyangkut dari sesi-sesi sebelumnya (cuma
+        2 subscription asli milik akun real yang tersisa)
+- [x] tsc, eslint bersih di seluruh project (bukan cuma file yang
+      disentuh)
+
+### Follow-up: Konfirmasi Langsung Kalau Tanggal Jatuh Tempo = Hari Ini
+
+Gap yang disadari user: kalau item baru ditambahkan dengan `dayOfMonth`
+persis hari ini, reminder push barunya baru kekirim di siklus cron
+berikutnya (besok, atau malah bulan depan kalau jam 12 siang sudah
+lewat) — jadi transaksi bulan ini bisa kelewat kalau tidak dicatat
+manual.
+
+- [x] `app/(app)/settings/page.tsx` — `handleAddRecurringExpense`
+      sekarang baca response `POST` yang baru dibuat; kalau
+      `created.dayOfMonth === new Date().getDate()` (perbandingan
+      pakai tanggal LOKAL browser, bukan WIB-aware seperti di cron —
+      cukup buat kenyamanan UI, bukan perhitungan server), langsung
+      munculkan `AddExpenseDialog` yang sama (controlled + prefill,
+      pola persis yang dipakai alur konfirmasi dari notifikasi push)
+      supaya user bisa langsung catat kejadian bulan ini tanpa nunggu
+      notifikasi. Tetap semi-otomatis — user masih review/edit &amp;
+      klik "Simpan" sendiri, tidak ada auto-create
+- [x] tsc, eslint bersih di seluruh project
+
+### Follow-up: Judul Modal Kontekstual + Konfirmasi Sebelum Tertutup Tidak Sengaja
+
+User laporan: dialog "Konfirmasi Pengeluaran Berulang" ini judul/
+deskripsinya masih generik ("Tambah Pengeluaran"), bikin bingung kenapa
+modal itu muncul tiba-tiba. Lalu ketika modalnya kepencet ke-close tidak
+sengaja (klik sembarang di luar/backdrop), tidak ada cara buat
+memunculkannya lagi — beda dari alur "Input Pengeluaran" biasa yang
+tombolnya masih ada kapan saja.
+
+- [x] `components/add-expense-dialog.tsx` — tambah prop opsional
+      `title`/`description` (override teks generik `DialogTitle`/
+      `DialogDescription`, default tetap sama kalau tidak dikasih —
+      backward-compatible)
+- [x] `app/(app)/settings/page.tsx` &amp; `app/(app)/dashboard/page.tsx`
+      — kedua render-site alur konfirmasi (immediate-confirm pas nambah
+      &amp; confirm dari notifikasi push) sekarang kasih
+      `title="Konfirmasi Pengeluaran Berulang"` + `description` yang
+      nyebut nama item &amp; alasan modal itu muncul
+- [x] `components/ui/alert-dialog.tsx` diinstall (shadcn, pakai package
+      `radix-ui` yang sudah ada — tidak nambah dependency baru)
+- [x] `add-expense-dialog.tsx` — prop baru `confirmOnClose` (dipasang
+      cuma di dua render-site konfirmasi pengeluaran berulang, TIDAK di
+      tombol "Input Pengeluaran" biasa). Kalau true, percobaan nutup
+      lewat backdrop/X/Escape (`onOpenChange(false)` dari Radix) di-gate
+      lewat `AlertDialog` "Batalkan konfirmasi ini?" dulu — user harus
+      pilih "Ya, batalkan" baru beneran tertutup. Sengaja dipisah dari
+      jalur sukses-simpan (`handleSubmit` tetap manggil `setOpen(false)`
+      langsung, tidak lewat gate ini) biar submit normal tidak ikut
+      keganggu konfirmasi tambahan
+- [x] tsc, eslint bersih di seluruh project; tidak ada dependency npm
+      baru (alert-dialog pakai package `radix-ui` yang sudah terinstall)
+
+### Follow-up: Konfirmasi Sebelum Hapus di Settings
+
+- [x] `components/confirm-delete-button.tsx` (baru) — komponen reusable
+      `ConfirmDeleteButton` (icon Trash2 + `AlertDialog`), terima
+      `title`/`description` custom per pemakaian supaya penjelasannya
+      akurat ke konteks masing-masing (bukan cuma "tidak bisa
+      dibatalkan" generik)
+- [x] `app/(app)/settings/page.tsx` — 3 tombol hapus (Kategori Income,
+      Kategori Alokasi, Pengeluaran Berulang) diganti pakai
+      `ConfirmDeleteButton`. Deskripsi kategori Income/Alokasi sengaja
+      menyebut perilaku no-cascade yang sudah ada (lihat memory
+      `feedback_category_delete_no_cascade`) — jumlah yang sudah
+      tersimpan di bulan-bulan sebelumnya TETAP ada, cuma kategorinya
+      yang hilang dari daftar — biar user tidak kaget kayak kejadian
+      Fase 43
+- [x] tsc, eslint bersih di seluruh project

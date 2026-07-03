@@ -3,8 +3,10 @@ import webpush from "web-push";
 import { connectToDatabase } from "@/lib/mongodb";
 import Expense from "@/models/Expense";
 import PushSubscription from "@/models/PushSubscription";
+import RecurringExpense from "@/models/RecurringExpense";
 import { getMonthlyBudgetOrDraft } from "@/lib/monthlyBudget";
 import { toMonthString } from "@/lib/dashboardSummary";
+import { formatRupiah } from "@/lib/format";
 import { SITE_URL } from "@/lib/site";
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -105,8 +107,24 @@ export async function GET(request: Request) {
     }
   }
 
+  // 3. Pengeluaran berulang yang jatuh tempo hari ini (dikelompokkan per
+  // user karena satu user bisa punya beberapa item jatuh tempo bareng)
+  const dueRecurringExpenses = await RecurringExpense.find({
+    userId: { $in: subscriberIds },
+    active: true,
+    dayOfMonth: wib.getUTCDate(),
+  });
+  const recurringByUser = new Map<string, typeof dueRecurringExpenses>();
+  for (const item of dueRecurringExpenses) {
+    const uid = item.userId.toString();
+    const list = recurringByUser.get(uid) ?? [];
+    list.push(item);
+    recurringByUser.set(uid, list);
+  }
+
   let expenseReminderSent = 0;
   let budgetReminderSent = 0;
+  let recurringReminderSent = 0;
   let removed = 0;
 
   for (const sub of subscriptions) {
@@ -131,6 +149,22 @@ export async function GET(request: Request) {
       if (result === "sent") budgetReminderSent++;
       if (result === "removed") removed++;
     }
+
+    // Semi-otomatis: cuma diingatkan, TIDAK auto-create Expense — user
+    // yang tap notifikasi ini yang benar-benar mencatatnya (lewat dialog
+    // yang sudah ke-prefill), biar nominal masih bisa dikoreksi kalau
+    // beda dari biasanya (mis. tagihan listrik naik).
+    for (const item of recurringByUser.get(uid) ?? []) {
+      const result = await sendPush(sub, {
+        title: "Pundi",
+        body: `${item.name} ${formatRupiah(
+          item.amount
+        )} jatuh tempo hari ini — tap buat catat`,
+        url: `/dashboard?confirmRecurring=${item._id}`,
+      });
+      if (result === "sent") recurringReminderSent++;
+      if (result === "removed") removed++;
+    }
   }
 
   return NextResponse.json({
@@ -138,8 +172,10 @@ export async function GET(request: Request) {
     alreadyLoggedToday: alreadyLoggedToday.size,
     isStartOfMonth,
     budgetPending: budgetPending.size,
+    recurringDue: dueRecurringExpenses.length,
     expenseReminderSent,
     budgetReminderSent,
+    recurringReminderSent,
     removed,
   });
 }
