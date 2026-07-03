@@ -43,6 +43,7 @@ export function CurrencyInput({
   value,
   onValueChange,
   className,
+  prefixClassName,
   disabled,
   placeholder,
   id,
@@ -50,6 +51,11 @@ export function CurrencyInput({
   value: number;
   onValueChange: (value: number) => void;
   className?: string;
+  // Override warna "Rp" — dipakai kalau input ini duduk di atas surface
+  // berwarna tetap (mis. kartu gradient yang sengaja bg-white terlepas
+  // dari tema app), karena default `text-muted-foreground` ikut tema dan
+  // bisa jadi nyaris tidak kelihatan di surface yang warnanya fixed.
+  prefixClassName?: string;
   disabled?: boolean;
   placeholder?: string;
   id?: string;
@@ -76,7 +82,12 @@ export function CurrencyInput({
 
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+      <span
+        className={cn(
+          "pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground",
+          prefixClassName
+        )}
+      >
         Rp
       </span>
       <Input

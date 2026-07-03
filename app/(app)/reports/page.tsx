@@ -196,7 +196,11 @@ export default function ReportsPage() {
                 axisLine={false}
                 tickLine={false}
               />
-              <Tooltip formatter={(v) => formatRupiah(Number(v))} />
+              <Tooltip
+                formatter={(v) => formatRupiah(Number(v))}
+                contentStyle={{ background: CHROME.surface }}
+                labelStyle={{ color: CHROME.primaryInk }}
+              />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar
                 dataKey="actual"
@@ -246,7 +250,11 @@ export default function ReportsPage() {
                 <BarChart data={[allocationRow]} layout="vertical">
                   <XAxis type="number" hide domain={[0, totalIncome || 1]} />
                   <YAxis type="category" dataKey="id" hide />
-                  <Tooltip formatter={(v) => formatRupiah(Number(v))} />
+                  <Tooltip
+                formatter={(v) => formatRupiah(Number(v))}
+                contentStyle={{ background: CHROME.surface }}
+                labelStyle={{ color: CHROME.primaryInk }}
+              />
                   {allocation.slices.map((s, i) => (
                     <Bar
                       key={s.name}
@@ -311,7 +319,11 @@ export default function ReportsPage() {
                 axisLine={false}
                 tickLine={false}
               />
-              <Tooltip formatter={(v) => formatRupiah(Number(v))} />
+              <Tooltip
+                formatter={(v) => formatRupiah(Number(v))}
+                contentStyle={{ background: CHROME.surface }}
+                labelStyle={{ color: CHROME.primaryInk }}
+              />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar
                 dataKey="highest"
@@ -377,7 +389,11 @@ export default function ReportsPage() {
                   axisLine={false}
                   tickLine={false}
                 />
-                <Tooltip formatter={(v) => formatRupiah(Number(v))} />
+                <Tooltip
+                formatter={(v) => formatRupiah(Number(v))}
+                contentStyle={{ background: CHROME.surface }}
+                labelStyle={{ color: CHROME.primaryInk }}
+              />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar
                   dataKey="planned"

@@ -14,6 +14,8 @@ import {
   PiggyBank,
   HelpCircle,
   MessageCircle,
+  Target,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   Avatar,
@@ -55,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/expenses", label: "Pengeluaran", icon: Receipt },
       { href: "/budget", label: "Budget", icon: Wallet },
+      { href: "/target", label: "Target", icon: Target },
     ],
   },
   {
@@ -72,12 +75,16 @@ const NAV_GROUPS: NavGroup[] = [
 
 const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
 
-// Bottom tab bar on mobile is limited to the most-used destinations.
+// Bottom tab bar on mobile is limited to 4 daily-input destinations, plus a
+// 5th "More" slot (see MORE_MENU_ROUTES/MORE_MENU_ITEMS below) — 6 flat
+// icons was too cramped, and Reports/Settings are checked less often than
+// Dashboard/Pengeluaran/Budget/Target.
 const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) =>
-  ["/dashboard", "/expenses", "/budget", "/reports", "/settings"].includes(
-    item.href
-  )
+  ["/dashboard", "/expenses", "/budget", "/target"].includes(item.href)
 );
+
+// Routes that should light up the "More" tab as active when visited.
+const MORE_MENU_ROUTES = ["/reports", "/settings", "/admin", "/panduan"];
 
 function initials(name: string) {
   return name
@@ -257,14 +264,15 @@ export function AppShell({
       </header>
 
       {/* Main content */}
-      <main className="md:pl-64 pb-20 md:pb-0">
+      <main className="md:pl-64 pb-24 md:pb-0">
         <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-8">
           {children}
         </div>
       </main>
 
-      {/* Mobile bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-background/95 backdrop-blur">
+      {/* Mobile bottom tab bar — floating pill, sama bahasa desain sama
+          navbar landing page (Fase 46) */}
+      <nav className="md:hidden fixed bottom-3 inset-x-3 z-30 rounded-2xl border bg-background/95 backdrop-blur shadow-lg shadow-black/5">
         <div className="grid grid-cols-5">
           {MOBILE_NAV_ITEMS.map((item) => {
             const active = pathname.startsWith(item.href);
@@ -274,14 +282,15 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium",
+                  "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-transform active:scale-95",
                   active ? "text-emerald-600" : "text-muted-foreground"
                 )}
               >
                 <span
                   className={cn(
-                    "flex items-center justify-center rounded-full size-7 transition-colors",
-                    active && "bg-emerald-100"
+                    "flex items-center justify-center rounded-full size-8 transition-colors",
+                    active &&
+                      "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30"
                   )}
                 >
                   <Icon className="size-4.5" />
@@ -290,6 +299,80 @@ export function AppShell({
               </Link>
             );
           })}
+
+          {(() => {
+            const moreActive = MORE_MENU_ROUTES.some((r) =>
+              pathname.startsWith(r)
+            );
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-transform active:scale-95",
+                    moreActive ? "text-emerald-600" : "text-muted-foreground"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex items-center justify-center rounded-full size-8 transition-colors",
+                      moreActive &&
+                        "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30"
+                    )}
+                  >
+                    <MoreHorizontal className="size-4.5" />
+                  </span>
+                  More
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="top" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link href="/reports">
+                      <BarChart3 className="size-4" />
+                      Reports
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">
+                      <Settings className="size-4" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  {user.role === "admin" && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin">
+                        <Users className="size-4" />
+                        Admin
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/panduan">
+                      <HelpCircle className="size-4" />
+                      Panduan
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a
+                      href={WHATSAPP_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle className="size-4" />
+                      Hubungi
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => signOut({ callbackUrl: "/login" })}
+                  >
+                    <LogOut className="size-4" />
+                    Keluar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          })()}
         </div>
       </nav>
     </div>

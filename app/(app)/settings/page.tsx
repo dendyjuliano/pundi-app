@@ -26,6 +26,7 @@ import { CurrencyInput } from "@/components/currency-input";
 import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   UtensilsCrossed,
   ArrowDownToLine,
@@ -37,6 +38,7 @@ import {
   Repeat,
   Pause,
   Play,
+  Palette,
 } from "lucide-react";
 
 type IncomeCategory = { _id: string; name: string };
@@ -434,7 +436,8 @@ export default function SettingsPage() {
               placeholder="Jumlah baru per hari"
               value={newAmountPerDay}
               onValueChange={setNewAmountPerDay}
-              className="bg-white/95 border-0 text-foreground"
+              className="bg-white/95 dark:bg-white/95 border-0 text-zinc-900 placeholder:text-zinc-400"
+              prefixClassName="text-zinc-500"
             />
             <Button
               type="submit"
@@ -443,6 +446,27 @@ export default function SettingsPage() {
               Update
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Tampilan */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+          <IconChip icon={Palette} color="violet" />
+          <div>
+            <CardTitle>Tampilan</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Tema</p>
+              <p className="text-xs text-muted-foreground">
+                Pilih tampilan terang, gelap, atau ikuti pengaturan sistem
+              </p>
+            </div>
+            <ThemeToggle />
+          </div>
         </CardContent>
       </Card>
 

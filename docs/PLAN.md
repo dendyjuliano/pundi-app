@@ -2091,3 +2091,176 @@ tombolnya masih ada kapan saja.
       yang hilang dari daftar — biar user tidak kaget kayak kejadian
       Fase 43
 - [x] tsc, eslint bersih di seluruh project
+
+## Fase 57 — Dark Mode
+
+Direncanakan lewat plan mode. Riset awal nemuin kejutan: `app/
+globals.css` SUDAH punya blok `.dark` lengkap (semua token
+`--background`/`--card`/`--muted`/`--sidebar*` dst sudah ada versi
+gelapnya) dan `@custom-variant dark (&amp;:is(.dark *));` sudah
+dideklarasikan, PLUS `next-themes` sudah ada di `package.json`
+(`^0.4.6`) dan `components/ui/sonner.tsx` sudah manggil `useTheme()`
+duluan — berarti ada sesi sebelumnya yang naruh groundwork ini tapi
+tidak pernah nyambungin `ThemeProvider`-nya. Jadi kerjanya jauh lebih
+kecil dari perkiraan awal.
+
+- [x] `app/providers.tsx` — bungkus `SessionProvider` dengan
+      `ThemeProvider` dari `next-themes` (`attribute="class"`,
+      `defaultTheme="system"`, `enableSystem`)
+- [x] `app/layout.tsx` — tambah `suppressHydrationWarning` di `<html>`
+      (wajib buat next-themes, `class="dark"` di-inject client-side
+      jadi beda dari markup server)
+- [x] `components/theme-toggle.tsx` (baru) — `Select` 3 opsi (Terang/
+      Gelap/Ikuti Sistem) pakai `useTheme()`. Ada "mounted guard" pola
+      baku next-themes (render placeholder sebelum client mount, biar
+      tidak hydration-mismatch) — ini genuinely butuh `useEffect` +
+      `setState`, ditambahin `eslint-disable-next-line
+      react-hooks/set-state-in-effect` sekali dengan komentar alasan
+      (tidak ada cara lain deteksi "sudah hydrate belum" di React)
+- [x] Card baru **"Tampilan"** di `app/(app)/settings/page.tsx`,
+      ditaruh sebelum card Notifikasi
+- [x] Verifikasi: tsc, eslint bersih; smoke test curl (halaman render
+      200, tidak ada crash dari provider baru). Verifikasi visual
+      tema gelap di ~13 file yang punya gradient/`bg-white` (hero
+      card, landing, onboarding, dst) diserahkan ke user langsung
+      (`feedback_no_playwright_screenshots`) — sebagian besar itu
+      kartu gradient brand yang memang didesain vibrant di kedua tema
+
+## Fase 58 — Target Tabungan (Savings Goal)
+
+Fitur baru: user catat kontribusi MANUAL ke tujuan nabung spesifik
+(beda dari alokasi "Investasi" bulanan rutin yang sudah ada), bisa
+banyak goal sekaligus, halaman baru sendiri di sidebar (bukan numpang
+Dashboard) — tiga keputusan ini dikonfirmasi user lewat AskUserQuestion
+sebelum eksekusi.
+
+- [x] `models/SavingsGoal.ts` — `{userId, name, targetAmount,
+      targetDate (opsional)}`, ikutin konvensi `AllocationCategory.ts`
+- [x] `models/SavingsContribution.ts` — `{userId, goalId, amount, date
+      (default now), note (opsional)}`, index `{userId, goalId}`
+- [x] `app/api/savings-goals/route.ts` (GET list dengan progress
+      dihitung on-the-fly via `SavingsContribution.aggregate`
+      `$group`/`$sum` per `goalId` — bukan field ter-cache, pola sama
+      kayak `getMonthBreakdown` yang jumlahin `Expense` tiap request;
+      POST create) + `[id]/route.ts` (GET/PATCH/DELETE — DELETE
+      **cascade** hapus semua `SavingsContribution` terkait, beda dari
+      pola no-cascade `AllocationCategory` karena kontribusi murni
+      running-log tanpa konsep snapshot historis yang perlu dijaga) +
+      `[id]/contributions/route.ts` (GET list, POST tambah) +
+      `[id]/contributions/[contributionId]/route.ts` (DELETE, buat
+      koreksi kalau salah catat)
+- [x] `components/app-shell.tsx` — nav item baru "Target" (icon
+      `Target` dari lucide, sengaja beda dari `PiggyBank` yang sudah
+      jadi logo app) masuk ke grup "Input" (sejajar Pengeluaran &amp;
+      Budget), otomatis kepakai di sidebar desktop &amp; bottom tab
+      bar mobile sekaligus (satu sumber `NAV_GROUPS`)
+- [x] `app/(app)/target/page.tsx` (halaman baru) — grid Card per goal:
+      progress bar, terkumpul/target, persentase &amp; sisa, badge
+      "Tercapai" kalau sudah lunas. Tombol "Tambah Kontribusi" per
+      goal (dialog kecil: `CurrencyInput`, catatan opsional, tanggal
+      via Popover+Calendar — bukan native date input, konsisten sama
+      fix Fase 55). Riwayat kontribusi collapsible per goal, tiap
+      entry ada `ConfirmDeleteButton` (dari Fase 56 follow-up) buat
+      koreksi. Edit/hapus goal juga pakai `ConfirmDeleteButton` dengan
+      deskripsi yang jelasin kontribusi ikut terhapus. Form tambah goal
+      baru di bagian bawah halaman
+- [x] Verifikasi lewat akun uji: buat goal (target Rp5jt) → tambah 2
+      kontribusi (1jt + 500rb) → `GET /api/savings-goals` balas
+      `contributed:1500000` (benar) → hapus 1 kontribusi → balas
+      `contributed:1000000` (ter-update benar) → hapus goal-nya →
+      `GET` balas array kosong → dicek langsung ke MongoDB: 0 goals
+      &amp; 0 contributions tersisa (cascade delete terkonfirmasi
+      benar-benar jalan, bukan cuma goal-nya yang hilang dari list)
+- [x] tsc, eslint bersih di seluruh project; data uji dibersihkan
+
+### Follow-up: Kontribusi Ikut Tercatat sebagai Pengeluaran
+
+User sadar gap: kontribusi ke Target Tabungan sebelumnya sama sekali
+tidak nyentuh `Expense`, jadi uang yang beneran keluar buat ditabung
+seolah "menghilang" — Total Bersih/sisa budget di Dashboard jadi
+kelihatan lebih besar dari kenyataan. Diputuskan: kontribusi otomatis
+ikut tercatat sebagai `Expense` kategori "lain-lain".
+
+- [x] `models/SavingsContribution.ts` — field baru `expenseId`
+      (opsional, ref `Expense`) buat nge-link kontribusi ke Expense
+      yang otomatis dibuat
+- [x] `app/api/savings-goals/[id]/contributions/route.ts` (POST) —
+      bikin `Expense` dulu (`category:"lain-lain"`, `note:"Nabung: {nama
+      goal}"`, amount &amp; date sama persis) baru `SavingsContribution`
+      dengan `expenseId` menunjuk ke situ
+- [x] `.../contributions/[contributionId]/route.ts` (DELETE) — kalau
+      kontribusinya punya `expenseId`, Expense terkait ikut dihapus
+      (ini "koreksi salah catat", representasi kejadian yang sama)
+- [x] `.../savings-goals/[id]/route.ts` (DELETE goal) — SENGAJA TIDAK
+      diubah buat ikut cascade ke Expense — beda dari hapus kontribusi
+      individual. Alasan: hapus goal cuma berarti "berhenti nge-track
+      progress", bukan "kontribusi yang sudah terjadi dianggap tidak
+      pernah ada" — prinsip yang sama kayak kenapa hapus kategori tidak
+      mencabut nominal di `MonthlyBudget` bulan-bulan lalu
+      (`feedback_category_delete_no_cascade`)
+- [x] `app/(app)/target/page.tsx` — teks `ConfirmDeleteButton` &amp;
+      `DialogDescription` diperbarui biar jelas bedanya dua perilaku
+      delete ini (goal vs kontribusi individual)
+- [x] **Ketemu lagi bug "Mongoose model cache stale"**
+      (`feedback_restart_dev_after_schema_change`) — field `expenseId`
+      baru tidak muncul di response API sampai dev server di-restart,
+      walau kode model sudah benar dari awal. Restart dev server (punya
+      user, sudah jalan 33 menit) menyelesaikannya
+- [x] Verifikasi lewat akun uji: tambah kontribusi → `Expense` otomatis
+      kebuat (`category:"lain-lain"`, note benar) → hapus kontribusi
+      itu → `Expense`-nya ikut hilang → tambah kontribusi lagi → hapus
+      GOAL-nya (bukan kontribusinya) → `Expense` yang sudah tercatat
+      tadi TETAP ADA (perilaku no-cascade terkonfirmasi benar)
+- [x] tsc, eslint bersih di seluruh project; data uji dibersihkan
+
+### Follow-up: Bottom Tab Bar Mobile Belum Ada "Target"
+
+User sadar: `MOBILE_NAV_ITEMS` di `components/app-shell.tsx` itu daftar
+statis 5 href — "/target" tidak ada di situ, dan tidak ada menu
+overflow lain di mobile, jadi halaman Target sama sekali tidak bisa
+diakses di mobile kecuali ketik URL manual. Dikasih 3 opsi lewat
+AskUserQuestion, user pilih: ganti Reports jadi tab "More".
+
+- [x] `MOBILE_NAV_ITEMS` sekarang cuma 4 href tetap:
+      `/dashboard`, `/expenses`, `/budget`, `/target`
+- [x] Slot ke-5 grid jadi tombol **"More"** (icon `MoreHorizontal`) —
+      buka `DropdownMenu` (side="top", biar muncul ke atas dari bottom
+      bar) isinya Reports, Settings, Admin (kalau admin), Panduan,
+      Hubungi, Keluar — konsolidasi navigasi sekunder yang sebelumnya
+      cuma ada di dropdown avatar header mobile
+- [x] `MORE_MENU_ROUTES` (`/reports`, `/settings`, `/admin`, `/panduan`)
+      dipakai buat nyalain highlight tab "More" pas user lagi di salah
+      satu halaman itu — sama kayak tab lain yang nyala pas aktif
+- [x] Dropdown avatar di header mobile (atas) TIDAK diubah — masih ada
+      Panduan/Hubungi/Admin/Keluar di situ juga, jadi sedikit redundan
+      sama menu "More" yang baru, tapi tidak apa-apa (dua akses ke aksi
+      yang sama, bukan bug)
+- [x] tsc, eslint bersih di seluruh project; smoke test curl konfirmasi
+      server tetap sehat sesudah perubahan
+
+### Follow-up: Redesign Visual Bottom Tab Bar Mobile
+
+User minta tampilan bottom nav lebih modern/estetik. Sempat didiskusikan
+opsi speed-dial/FAB radial (kayak referensi gambar user) — saya
+rekomendasikan TIDAK ke arah itu (6 item ketinggian buat busur radial
+yang idealnya 3-4 shortcut, campuran navigasi+aksi butuh label teks,
+dan tidak ada "celah tengah" di grid 5-kolom yang ada buat naruh FAB
+tanpa restrukturisasi total) — user setuju, minta reuse bahasa desain
+yang sudah ada aja.
+
+- [x] `components/app-shell.tsx` — bottom tab bar jadi **floating
+      pill**: `bottom-3 inset-x-3` (bukan `bottom-0 inset-x-0` rata
+      tepi), `rounded-2xl` + `shadow-lg shadow-black/5` — sama pola
+      navbar landing page (Fase 46)
+- [x] Tab aktif ganti dari `bg-emerald-100` pudar jadi gradient
+      `from-emerald-500 to-teal-600` + ikon putih + shadow tipis — sama
+      persis treatment tab aktif di sidebar desktop, biar mobile &amp;
+      desktop konsisten. Ukuran chip ikon dinaikkan `size-7`→`size-8`
+      biar sepadan sama gradient yang lebih "berani"
+- [x] Tambah `transition-transform active:scale-95` di tiap tab (incl.
+      trigger "More") — animasi tekan kecil, murni CSS tanpa dependency
+      baru
+- [x] `pb-20`→`pb-24` di `<main>` — bar sekarang punya margin bawah
+      sendiri (`bottom-3`), padding konten perlu sedikit lebih besar
+      biar tidak ketutupan
+- [x] tsc, eslint bersih di seluruh project; smoke test curl
