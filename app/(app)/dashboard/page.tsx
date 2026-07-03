@@ -43,6 +43,7 @@ import {
   ArrowRight,
   History,
   Users,
+  Landmark,
 } from "lucide-react";
 
 type PeriodData = {
@@ -81,6 +82,7 @@ type MonthlySummary = {
     totalTarget: number;
     melenceng: boolean;
   };
+  investment: { planned: number; realized: number } | null;
   recentExpenses: {
     id: string;
     date: string;
@@ -474,6 +476,63 @@ function MonthlyDashboard({
           }}
         />
       </div>
+
+      {/* Investasi bulan ini — cuma muncul kalau ada kategori bertipe
+          invest, konsisten dengan Budget & Reports. */}
+      {summary.investment && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-3">
+              <IconChip icon={Landmark} color="violet" size="sm" />
+              <CardTitle className="text-base">Investasi Bulan Ini</CardTitle>
+            </div>
+            <Badge
+              variant="secondary"
+              className={
+                summary.investment.realized >= summary.investment.planned
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-amber-100 text-amber-700"
+              }
+            >
+              {summary.investment.realized >= summary.investment.planned
+                ? "Sesuai rencana"
+                : `Kurang ${formatRupiah(
+                    summary.investment.planned - summary.investment.realized
+                  )}`}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Realisasi / Rencana</span>
+              <span className="font-medium">
+                {formatRupiah(summary.investment.realized)}{" "}
+                <span className="text-muted-foreground font-normal">
+                  / {formatRupiah(summary.investment.planned)}
+                </span>
+              </span>
+            </div>
+            <Progress
+              value={
+                summary.investment.planned > 0
+                  ? Math.min(
+                      100,
+                      (summary.investment.realized /
+                        summary.investment.planned) *
+                        100
+                    )
+                  : summary.investment.realized > 0
+                    ? 100
+                    : 0
+              }
+              className={
+                summary.investment.realized >= summary.investment.planned
+                  ? "[&>div]:bg-emerald-500"
+                  : "[&>div]:bg-amber-500"
+              }
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Weekly breakdown — all weeks in the selected month */}
       <div>

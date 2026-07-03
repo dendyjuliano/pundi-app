@@ -142,6 +142,10 @@ export default function OnboardingPage() {
       return false;
     }
     setDailyBudgetSaved(true);
+    // Server otomatis membuat kategori alokasi "Makan" kalau belum ada —
+    // refresh daftar kategori supaya langsung kelihatan di step berikutnya.
+    const allocationRes = await fetch("/api/allocation-categories");
+    if (allocationRes.ok) setAllocationCategories(await allocationRes.json());
     return true;
   }
 

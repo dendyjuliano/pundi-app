@@ -1614,3 +1614,104 @@ publik di `/`).
       terproteksi) & `/dashboard.jpeg` (asset publik dari Fase 49) tetap
       berperilaku sama seperti sebelumnya (regresi nihil); tsc, eslint,
       `pnpm build` bersih
+
+## Fase 52 — Investasi Ditampilkan di Reports & Dashboard
+
+Diskusi user: bagian investasi cuma ada di Budget (transaksional,
+per-bulan), tidak kelihatan lagi begitu keluar dari situ. Disepakati 2
+tambahan: chart tren di Reports + indikator ringkas di Dashboard —
+keduanya cuma muncul kalau user punya kategori alokasi bertipe `invest`
+(konsisten dengan card "Realisasi Investasi" yang sudah ada di Budget
+sejak Fase 20).
+
+- [x] `lib/reports.ts` — fungsi baru `getYearlyInvestmentData(userId,
+      year)`: loop 12 bulan lewat `getMonthlyBudgetOrDraft` (reuse,
+      termasuk otomatis ikut carry-forward dari propagasi Fase 39),
+      hitung `planned`/`realized` per bulan dari baris alokasi bertipe
+      invest, plus flag `hasInvestCategory`
+- [x] `app/api/reports/investment/route.ts` — endpoint baru
+      `GET ?year=YYYY`, pola sama persis dengan `/api/reports/yearly`
+- [x] `app/(app)/reports/page.tsx` — **Chart 4: "Realisasi Investasi
+      {year}"**, paired bar (Rencana vs Realisasi) + 2 trendline, gaya
+      identik dengan Chart 3 (Pengeluaran Makan Bulanan — bar
+      berpasangan + trendline), pakai `CATEGORICAL[2]`/`[3]` (belum
+      dipakai chart lain di halaman ini, hindari ambiguitas warna
+      lintas-chart). Card ini di-render kondisional
+      (`investment?.hasInvestCategory`) — sembunyi total kalau user
+      tidak punya kategori invest
+- [x] `lib/dashboardSummary.ts` — `getMonthBreakdown` (shared oleh
+      dashboard bulanan & tahunan) dapat tambahan hitungan
+      `investPlanned`/`investRealized`/`hasInvestCategory`; diteruskan
+      ke `getDashboardSummary` sebagai field baru `investment: {planned,
+      realized} | null` (null kalau tidak ada kategori invest)
+- [x] `app/(app)/dashboard/page.tsx` — card baru **"Investasi Bulan
+      Ini"** di mode Bulanan (antara grid Hari Ini/Bulan Ini dan Rincian
+      Mingguan), badge status ("Sesuai rencana"/"Kurang Rp X") + progress
+      bar realisasi vs rencana, gaya konsisten dengan card sejenis di
+      Budget. Render kondisional (`summary.investment`)
+- [x] Verifikasi lewat curl dengan 2 akun uji terisolasi:
+      - Akun **dengan** kategori invest: buat kategori "Saham" → simpan
+        Juli dengan rencana 2jt/realisasi 1,5jt → `dashboard-summary`
+        balas `"investment":{"planned":2000000,"realized":1500000}`;
+        `reports/investment` balas 12 bulan dengan Agustus-Desember
+        ikut ter-propagasi rencana 2jt (realisasi tetap 0, sesuai
+        aturan "realized tidak di-carry-forward" dari Fase 20)
+      - Akun **tanpa** kategori invest: `dashboard-summary` →
+        `"investment":null`; `reports/investment` →
+        `"hasInvestCategory":false` — konfirmasi kedua fitur baru
+        bersih tersembunyi kalau tidak relevan
+      - Data uji dibersihkan; tsc, eslint, `pnpm build` bersih
+
+## Fase 53 — Bug: Target "Makan" Rp0 di Bulan Ini (Kategori Food Hilang)
+
+Bug dilaporkan user (screenshot): card "Juli 2026" nampilin "Makan Rp
+52.400 / Rp 0" — target 0 padahal jatah harian sudah diisi Rp100.000.
+
+- [x] Root cause ditemukan lewat database akun yang kena bug: akun
+      **tidak punya kategori alokasi bertipe "food" sama sekali**
+      (cuma ada 4 Fixed Cost + 1 Investasi). "Hari Ini"/"Minggu" baca
+      target Makan langsung dari `amountPerDay` (jatah harian), tapi
+      "Bulan Ini" baca dari jumlah baris alokasi bertipe food — tanpa
+      kategori itu, jumlahnya otomatis 0, dan **Total Bersih ikut
+      overstated** di semua bulan (jatah harian tidak pernah
+      dikurangkan ke Total Alokasi)
+- [x] Penyebab sebenarnya (dikonfirmasi lewat baca kode setelah user
+      bilang "saya sudah pernah isi"): `app/onboarding/page.tsx` step
+      "Jatah Makan per Hari" cuma memanggil
+      `POST /api/daily-budget-setting` — TIDAK pernah membuat kategori
+      alokasi bertipe food. Step berikutnya ("Pos Alokasi") juga tidak
+      menyinggung perlunya kategori Makan, cuma kasih contoh Fixed Cost
+      (transfer, sewa, investasi) — jadi user wajar mengira jatah
+      hariannya sudah "beres" padahal belum tersambung ke mana pun
+      selain Hari Ini/Minggu
+- [x] Fix di source: `app/api/daily-budget-setting/route.ts` (POST) —
+      setelah berhasil simpan jatah harian, cek apakah user sudah punya
+      kategori alokasi bertipe `food`; kalau belum, otomatis buat satu
+      bernama "Makan". Berlaku baik dipanggil dari onboarding maupun
+      dari Settings biasa — satu titik perbaikan untuk semua jalur.
+      Idempotent (dicek via `AllocationCategory.exists`, tidak bikin
+      duplikat kalau dipanggil berkali-kali)
+- [x] `app/onboarding/page.tsx` — `saveDailyBudget` sekarang refetch
+      `allocationCategories` sesudah simpan, supaya kategori "Makan"
+      yang baru otomatis dibuat langsung kelihatan di step "Pos
+      Alokasi" berikutnya (sebelumnya cuma di-fetch sekali di awal,
+      tidak akan reflect perubahan dari step sebelumnya)
+- [x] `app/(app)/settings/page.tsx` tidak perlu diubah — `loadAll()`
+      yang sudah dipanggil sesudah tiap aksi otomatis ikut menangkap
+      kategori baru ini
+- [x] Data akun yang kena bug diperbaiki (dengan izin user) lewat script
+      sekali-pakai: buat kategori "Makan" (food), lalu `$push` baris
+      alokasi baru ke 25 bulan yang sudah tersimpan (Jul 2026 - Jul
+      2028) dengan nominal `amountPerDay × jumlah_hari_bulan_itu`
+      (dihitung native pakai `new Date(y,m,0).getDate()` — otomatis
+      benar untuk tahun kabisat, terverifikasi Feb 2027=28 hari vs
+      Feb 2028=29 hari beda nominal). Juli 2026: Total Alokasi naik
+      dari Rp13.200.000 jadi Rp16.300.000 (nambah Rp3.100.000 = jatah
+      Makan yang sebelumnya hilang), Total Bersih turun jadi
+      Rp6.300.000 (dari Rp9.400.000 yang overstated sebelumnya)
+- [x] Verifikasi: tsc, eslint, `pnpm build` bersih; fungsional lewat
+      curl dengan akun uji terisolasi — sebelum save jatah harian:
+      `/api/allocation-categories` kosong; sesudah save: otomatis
+      berisi 1 kategori "Makan" tipe food; save jatah harian KEDUA
+      kalinya (ganti nominal) → kategori tidak terduplikasi (masih 1,
+      idempotent terkonfirmasi); data uji dibersihkan

@@ -3,6 +3,21 @@ import AllocationCategory from "@/models/AllocationCategory";
 import Expense from "@/models/Expense";
 import { getMonthlyBudgetOrDraft } from "@/lib/monthlyBudget";
 
+const MONTH_SHORT_LABEL = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "Mei",
+  "Jun",
+  "Jul",
+  "Agu",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Des",
+];
+
 export async function getMonthlyReportData(userId: string, month: string) {
   await connectToDatabase();
 
@@ -56,4 +71,47 @@ export async function getMonthlyReportData(userId: string, month: string) {
     makanHighest,
     makanAverage,
   };
+}
+
+// Rencana vs realisasi investasi per bulan sepanjang tahun — dipakai chart
+// khusus di Reports. `hasInvestCategory` dipakai frontend untuk sembunyikan
+// chart ini sama sekali kalau user tidak punya kategori alokasi bertipe
+// "invest" (konsisten dengan Budget & Dashboard yang juga menyembunyikan
+// bagian investasi kalau tidak relevan).
+export async function getYearlyInvestmentData(userId: string, year: number) {
+  await connectToDatabase();
+
+  const allocationCategories = await AllocationCategory.find({ userId });
+  const investCategoryIds = new Set(
+    allocationCategories
+      .filter((c) => c.type === "invest")
+      .map((c) => c._id.toString())
+  );
+  const hasInvestCategory = investCategoryIds.size > 0;
+
+  const monthStrings = Array.from(
+    { length: 12 },
+    (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`
+  );
+
+  const months = await Promise.all(
+    monthStrings.map(async (month, i) => {
+      const budget = await getMonthlyBudgetOrDraft(userId, month);
+      const investLines = budget.allocations.filter(
+        (a: { categoryId: unknown }) =>
+          investCategoryIds.has(String(a.categoryId))
+      );
+      const planned = investLines.reduce(
+        (sum: number, a: { amount: number }) => sum + a.amount,
+        0
+      );
+      const realized = investLines.reduce(
+        (sum: number, a: { realized?: number }) => sum + (a.realized ?? 0),
+        0
+      );
+      return { month, label: MONTH_SHORT_LABEL[i], planned, realized };
+    })
+  );
+
+  return { year, hasInvestCategory, months };
 }

@@ -27,7 +27,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconChip } from "@/components/icon-chip";
-import { TrendingUp, PieChart, UtensilsCrossed } from "lucide-react";
+import { TrendingUp, PieChart, UtensilsCrossed, Landmark } from "lucide-react";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 4 + i);
@@ -45,6 +45,13 @@ type AllocationReport = {
   month: string;
   totalIncome: number;
   slices: AllocationSlice[];
+};
+
+type InvestmentMonth = { month: string; label: string; planned: number; realized: number };
+type InvestmentReport = {
+  year: number;
+  hasInvestCategory: boolean;
+  months: InvestmentMonth[];
 };
 
 const MONTH_LABEL = [
@@ -72,19 +79,22 @@ export default function ReportsPage() {
   const [allocationMonth, setAllocationMonth] = useState(currentMonth());
   const [yearlyData, setYearlyData] = useState<MonthReport[]>([]);
   const [allocation, setAllocation] = useState<AllocationReport | null>(null);
+  const [investment, setInvestment] = useState<InvestmentReport | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [yearly, alloc] = await Promise.all([
+      const [yearly, alloc, invest] = await Promise.all([
         fetch(`/api/reports/yearly?year=${year}`).then((r) => r.json()),
         fetch(`/api/reports/allocation?month=${allocationMonth}`).then((r) =>
           r.json()
         ),
+        fetch(`/api/reports/investment?year=${year}`).then((r) => r.json()),
       ]);
       setYearlyData(yearly);
       setAllocation(alloc);
+      setInvestment(invest);
       setLoading(false);
     })();
   }, [year, allocationMonth]);
@@ -114,6 +124,19 @@ export default function ReportsPage() {
     trendActual: trendActual[i],
     trendHighest: trendHighest[i],
     trendAverage: trendAverage[i],
+  }));
+
+  const investmentChartData = (investment?.months ?? []).map((m) => ({
+    label: m.label,
+    planned: m.planned,
+    realized: m.realized,
+  }));
+  const trendPlanned = linearTrend(investmentChartData.map((d) => d.planned));
+  const trendRealized = linearTrend(investmentChartData.map((d) => d.realized));
+  const investmentChartDataWithTrend = investmentChartData.map((d, i) => ({
+    ...d,
+    trendPlanned: trendPlanned[i],
+    trendRealized: trendRealized[i],
   }));
 
   const totalIncome = allocation?.totalIncome ?? 0;
@@ -324,6 +347,73 @@ export default function ReportsPage() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Chart 4: Realisasi Investasi — cuma muncul kalau user punya
+          kategori alokasi bertipe invest, konsisten dengan Budget &
+          Dashboard yang juga menyembunyikan bagian investasi kalau tidak
+          relevan. */}
+      {investment?.hasInvestCategory && (
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+            <IconChip icon={Landmark} color="violet" size="sm" />
+            <CardTitle className="text-base">
+              Realisasi Investasi {year}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={investmentChartDataWithTrend}>
+                <CartesianGrid stroke={CHROME.gridline} vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  interval={0}
+                  tick={{ fill: CHROME.mutedInk, fontSize: 12 }}
+                  axisLine={{ stroke: CHROME.baseline }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tickFormatter={formatCompact}
+                  tick={{ fill: CHROME.mutedInk, fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip formatter={(v) => formatRupiah(Number(v))} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar
+                  dataKey="planned"
+                  name="Rencana"
+                  fill={CATEGORICAL[2]}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={18}
+                />
+                <Bar
+                  dataKey="realized"
+                  name="Realisasi"
+                  fill={CATEGORICAL[3]}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={18}
+                />
+                <Line
+                  dataKey="trendPlanned"
+                  name="Trendline Rencana"
+                  stroke={CATEGORICAL[2]}
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={false}
+                />
+                <Line
+                  dataKey="trendRealized"
+                  name="Trendline Realisasi"
+                  stroke={CATEGORICAL[3]}
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

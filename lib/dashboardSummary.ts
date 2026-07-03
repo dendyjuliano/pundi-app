@@ -54,6 +54,11 @@ async function getMonthBreakdown(userId: string, month: string) {
       .filter((c) => c.type === "food")
       .map((c) => c._id.toString())
   );
+  const investCategoryIds = new Set(
+    allocationCategories
+      .filter((c) => c.type === "invest")
+      .map((c) => c._id.toString())
+  );
 
   const foodBudget = budget.allocations
     .filter((a: { categoryId: unknown; amount: number }) =>
@@ -61,6 +66,19 @@ async function getMonthBreakdown(userId: string, month: string) {
     )
     .reduce((sum: number, a: { amount: number }) => sum + a.amount, 0);
   const lainLainBudget = budget.totalBersih;
+
+  const investLines = budget.allocations.filter(
+    (a: { categoryId: unknown }) => investCategoryIds.has(String(a.categoryId))
+  );
+  const investPlanned = investLines.reduce(
+    (sum: number, a: { amount: number }) => sum + a.amount,
+    0
+  );
+  const investRealized = investLines.reduce(
+    (sum: number, a: { realized?: number }) => sum + (a.realized ?? 0),
+    0
+  );
+  const hasInvestCategory = investCategoryIds.size > 0;
 
   const [y, m] = month.split("-").map(Number);
   const monthStart = new Date(y, m - 1, 1);
@@ -86,6 +104,9 @@ async function getMonthBreakdown(userId: string, month: string) {
     totalActual,
     totalTarget,
     melenceng: totalActual > totalTarget,
+    investPlanned,
+    investRealized,
+    hasInvestCategory,
   };
 }
 
@@ -106,6 +127,9 @@ export async function getDashboardSummary(
     lainLainBudget,
     totalActual,
     totalTarget,
+    investPlanned,
+    investRealized,
+    hasInvestCategory,
   } = await getMonthBreakdown(userId, month);
 
   const dailyBudgetSetting = await DailyBudgetSetting.findOne({
@@ -205,6 +229,9 @@ export async function getDashboardSummary(
       totalTarget,
       melenceng: totalActual > totalTarget,
     },
+    investment: hasInvestCategory
+      ? { planned: investPlanned, realized: investRealized }
+      : null,
     recentExpenses,
   };
 }

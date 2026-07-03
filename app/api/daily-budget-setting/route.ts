@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { getCurrentUser } from "@/lib/session";
 import DailyBudgetSetting from "@/models/DailyBudgetSetting";
+import AllocationCategory from "@/models/AllocationCategory";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -36,5 +37,23 @@ export async function POST(request: Request) {
     amountPerDay,
     effectiveFrom,
   });
+
+  // Jatah harian cuma "kepakai" ke Total Alokasi/Bulan Ini kalau ada
+  // kategori alokasi bertipe "food" yang menampungnya. Tanpa ini, jatah
+  // harian yang diisi user diam-diam tidak pernah dihitung di mana pun
+  // selain "Hari Ini"/"Minggu" (yang baca amountPerDay langsung) — jadi
+  // pastikan kategorinya selalu ada begitu jatah harian pertama disimpan.
+  const hasFoodCategory = await AllocationCategory.exists({
+    userId: user.id,
+    type: "food",
+  });
+  if (!hasFoodCategory) {
+    await AllocationCategory.create({
+      userId: user.id,
+      name: "Makan",
+      type: "food",
+    });
+  }
+
   return NextResponse.json(setting, { status: 201 });
 }
