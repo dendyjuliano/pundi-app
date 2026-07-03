@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/sonner";
@@ -36,6 +36,11 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  appleWebApp: {
+    capable: true,
+    title: SITE_NAME,
+    statusBarStyle: "black-translucent",
+  },
   openGraph: {
     type: "website",
     locale: "id_ID",
@@ -49,6 +54,12 @@ export const metadata: Metadata = {
     title: `${SITE_NAME} — Kelola Keuangan Keluarga`,
     description: SITE_DESCRIPTION,
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#10b981",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
