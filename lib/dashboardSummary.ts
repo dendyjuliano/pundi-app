@@ -110,6 +110,87 @@ async function getMonthBreakdown(userId: string, month: string) {
   };
 }
 
+type CategoryInsight = {
+  category: "makan" | "lain-lain";
+  direction: "up" | "down";
+  percent: number;
+  message: string;
+};
+
+const CATEGORY_LABEL: Record<"makan" | "lain-lain", string> = {
+  makan: "Makan",
+  "lain-lain": "Lain-lain",
+};
+
+// Insight cuma layak ditampilkan kalau perubahannya cukup besar — di bawah
+// ini dianggap fluktuasi harian biasa, bukan pola yang perlu diperhatikan.
+const INSIGHT_THRESHOLD_PERCENT = 15;
+
+// Bandingin pengeluaran bulan berjalan (s.d. `referenceDate`) dengan
+// pengeluaran bulan lalu di rentang tanggal yang SAMA (bukan total sebulan
+// penuh) — supaya adil, karena kalau baru tanggal 10 udah pasti lebih kecil
+// dari total sebulan kemarin.
+async function getMonthToDateInsights(
+  userId: string,
+  referenceDate: Date
+): Promise<CategoryInsight[]> {
+  const day = referenceDate.getDate();
+  const currentMonthStart = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    1
+  );
+  const currentRangeEnd = endOfDay(referenceDate);
+
+  const prevMonthStart = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() - 1,
+    1
+  );
+  const prevMonthDayCount = daysInMonth(toMonthString(prevMonthStart));
+  const prevRangeEnd = endOfDay(
+    new Date(
+      prevMonthStart.getFullYear(),
+      prevMonthStart.getMonth(),
+      Math.min(day, prevMonthDayCount)
+    )
+  );
+
+  const [currentExpenses, prevExpenses] = await Promise.all([
+    Expense.find({
+      userId,
+      date: { $gte: currentMonthStart, $lte: currentRangeEnd },
+    }).lean(),
+    Expense.find({
+      userId,
+      date: { $gte: prevMonthStart, $lte: prevRangeEnd },
+    }).lean(),
+  ]);
+
+  const insights: CategoryInsight[] = [];
+  for (const category of ["makan", "lain-lain"] as const) {
+    const current = sumByCategory(currentExpenses, category);
+    const previous = sumByCategory(prevExpenses, category);
+    if (previous <= 0) continue; // tidak ada baseline buat dibandingkan
+
+    const percent = ((current - previous) / previous) * 100;
+    if (Math.abs(percent) < INSIGHT_THRESHOLD_PERCENT) continue;
+
+    const direction = percent > 0 ? "up" : "down";
+    const roundedPercent = Math.round(Math.abs(percent));
+    insights.push({
+      category,
+      direction,
+      percent: roundedPercent,
+      message: `Pengeluaran ${CATEGORY_LABEL[category]} ${
+        direction === "up" ? "naik" : "turun"
+      } ${roundedPercent}% dari bulan lalu (s.d. tanggal yang sama)`,
+    });
+  }
+
+  return insights;
+}
+
 export async function getDashboardSummary(
   userId: string,
   referenceDate: Date = new Date()
@@ -179,6 +260,10 @@ export async function getDashboardSummary(
     };
   }
 
+  const insights = isCurrentMonth
+    ? await getMonthToDateInsights(userId, referenceDate)
+    : [];
+
   const totalWeeks = getWeeksInMonth(month);
   const weeks = [];
   for (let weekNumber = 1; weekNumber <= totalWeeks; weekNumber++) {
@@ -220,6 +305,7 @@ export async function getDashboardSummary(
     amountPerDay,
     today,
     weeks,
+    insights,
     monthSummary: {
       makanActual: monthMakanActual,
       lainLainActual: monthLainLainActual,

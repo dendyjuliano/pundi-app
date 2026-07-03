@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IconChip } from "@/components/icon-chip";
 import { CurrencyInput } from "@/components/currency-input";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import {
   Trash2,
   UtensilsCrossed,
@@ -30,6 +31,7 @@ import {
   Pencil,
   Check,
   X,
+  Bell,
 } from "lucide-react";
 
 type IncomeCategory = { _id: string; name: string };
@@ -286,6 +288,19 @@ export default function SettingsPage() {
               Update
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Notifikasi */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+          <IconChip icon={Bell} color="blue" />
+          <div>
+            <CardTitle>Notifikasi</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <PushNotificationToggle />
         </CardContent>
       </Card>
 

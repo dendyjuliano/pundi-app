@@ -1715,3 +1715,196 @@ Bug dilaporkan user (screenshot): card "Juli 2026" nampilin "Makan Rp
       berisi 1 kategori "Makan" tipe food; save jatah harian KEDUA
       kalinya (ganti nominal) → kategori tidak terduplikasi (masih 1,
       idempotent terkonfirmasi); data uji dibersihkan
+
+## Backlog — Ide Pengembangan Selanjutnya (belum dieksekusi)
+
+Didiskusikan setelah PWA + post promosi LinkedIn selesai. User tertarik
+ke dua arah retensi/insight, dicatat dulu di sini sebelum eksekusi —
+termasuk mana yang gratis dan mana yang berpotensi butuh biaya.
+
+- [ ] **Push notification pengingat** (misal "belum ada pengeluaran
+      tercatat hari ini") — alasan: user baru (teman/keluarga yang
+      mulai pakai lewat promosi) paling gampang berhenti pakai kalau
+      tidak ada yang narik balik mereka buka app tiap hari
+      - **Gratis**: Web Push API + VAPID key + Service Worker — semua
+        native browser, tidak ada biaya API pihak ketiga. Delivery
+        lewat push service bawaan tiap browser (mis. FCM untuk
+        Chrome/Edge, Apple Push untuk Safari iOS 16.4+), gratis dari
+        sisi kita. Nyimpen subscription per user di MongoDB Atlas juga
+        masih aman di tier gratis
+      - **Berpotensi bayar**: cara MEMICU notifikasi terjadwal (mis.
+        tiap jam 8 malam). Vercel Cron Jobs di plan Hobby (gratis) ada
+        tapi dibatasi (jadwal minimal harian, jumlah cron job
+        terbatas) — cukup kalau reminder-nya 1x/hari untuk semua user,
+        tapi kalau nanti user bisa atur jam reminder masing-masing
+        (lebih personal), kemungkinan perlu upgrade plan Vercel atau
+        pakai cron eksternal
+- [ ] **Auto-insight dari data yang sudah ada** (mis. "pengeluaran
+      Makan naik 20% dari bulan lalu") — alasan: data historis sudah
+      banyak (Reports udah ada beberapa bulan jalan), sayang kalau
+      cuma jadi angka mentah tanpa insight yang gampang dicerna
+      - **Gratis**: kalau berbasis perhitungan/rule sendiri (bandingin
+        angka antar bulan/kategori dari data yang sudah ada) —
+        sepenuhnya di kode kita, tidak butuh API luar sama sekali
+      - **Berpotensi bayar**: kalau insight-nya mau dalam bentuk
+        kalimat natural yang lebih "pintar"/personal (pakai AI/LLM
+        buat generate teksnya) — ini butuh biaya API AI, besarnya
+        tergantung jumlah user & seberapa sering di-generate (bisa
+        ditekan murah kalau di-generate berkala, mis. 1x/bulan per
+        user, bukan tiap kali buka app)
+
+Belum ada keputusan final scope/prioritas — didiskusikan lagi sebelum
+mulai fase implementasi.
+
+## Fase 54 — Push Notification Reminder + Auto-Insight (versi gratis)
+
+User pilih "yang gratis semua" dari backlog di atas. Jam reminder:
+12:00 WIB (siang) untuk semua user (belum bisa per-user, itu keterbatasan
+plan Vercel Cron gratis). Lokasi insight: Dashboard.
+
+- [x] `lib/dashboardSummary.ts` — fungsi baru `getMonthToDateInsights`:
+      bandingin pengeluaran bulan berjalan (s.d. `referenceDate`) vs
+      bulan lalu di rentang TANGGAL YANG SAMA (bukan total sebulan
+      penuh, biar adil kalau baru pertengahan bulan), per kategori
+      (`makan`/`lain-lain`). Insight cuma muncul kalau |perubahan| ≥
+      `INSIGHT_THRESHOLD_PERCENT` (15%) dan ada baseline bulan lalu
+      (previous > 0). Dipanggil dari `getDashboardSummary` cuma kalau
+      `isCurrentMonth` true, hasilnya masuk field baru `insights: []`
+- [x] `app/(app)/dashboard/page.tsx` — card baru **"Insight Bulan Ini"**
+      (antara card Investasi dan Rincian Mingguan), render kondisional
+      (`summary.insights.length > 0`), icon TrendingUp/TrendingDown
+      warna destructive/emerald sesuai arah perubahan
+- [x] Verifikasi lewat akun uji: seed pengeluaran Juni (baseline) &amp;
+      Juli (bulan berjalan) lewat API — Makan naik dari 100rb→300rb
+      (+200%) dan Lain-lain turun dari 200rb→50rb (-75%) di rentang
+      tanggal yang sama (1-3), `dashboard-summary` balas insight
+      persis sesuai angka yang diharapkan; data uji dibersihkan
+
+- [x] `pnpm add web-push` + `@types/web-push` (dev) — paket gratis,
+      tidak ada biaya API pihak ketiga untuk push (delivery lewat push
+      service bawaan browser)
+- [x] VAPID key pair digenerate via `webpush.generateVAPIDKeys()`,
+      disimpan di `.env.local` (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+      `VAPID_PRIVATE_KEY`) + `CRON_SECRET` baru (random 64-hex) buat
+      ngamanin endpoint cron. **User perlu nambahin ketiga env var ini
+      juga ke Vercel project settings sebelum push reminder jalan di
+      production**
+- [x] `models/PushSubscription.ts` — `{ userId, endpoint (unique),
+      keys: {p256dh, auth} }`, timestamps
+- [x] `app/api/push/subscribe/route.ts` — POST upsert-by-endpoint
+      (bukan by userId, karena satu user bisa subscribe dari beberapa
+      device/browser), DELETE by endpoint+userId
+- [x] `public/sw.js` — service worker MINIMAL, cuma handle event
+      `push` (nampilin notifikasi) &amp; `notificationclick` (buka
+      `/dashboard`). Sengaja TIDAK ada `fetch` handler / cache apa pun
+      — konsisten sama keputusan Fase PWA sebelumnya (installable only,
+      no offline caching, karena data finance harus selalu fresh)
+- [x] `components/push-notification-toggle.tsx` — toggle di Settings,
+      handle request permission → subscribe → POST ke
+      `/api/push/subscribe`; disable → DELETE + `unsubscribe()`.
+      Auto-hide kalau browser tidak dukung Push API sama sekali
+- [x] `app/(app)/settings/page.tsx` — card baru "Notifikasi" berisi
+      `&lt;PushNotificationToggle /&gt;`, ditaruh sebelum card Kategori
+      Income
+- [x] `app/api/cron/daily-reminder/route.ts` — dilindungi header
+      `Authorization: Bearer $CRON_SECRET` (dicek manual, bukan lewat
+      proxy.ts karena semua `/api/*` memang sudah dikecualikan dari
+      proxy session-auth). Logic: hitung awal hari WIB (UTC+7, tanpa
+      DST) dari waktu sekarang lewat `wibStartOfDayUtc()` (bukan pakai
+      timezone server, karena Vercel Cron selalu jalan di UTC) → cari
+      user yang SUDAH punya Expense sejak awal hari WIB itu → skip
+      mereka → sisanya dikirimin push. Subscription yang gagal kirim
+      dengan status 404/410 (sudah expired/di-uninstall) otomatis
+      dihapus dari DB, error lain (mis. network) dibiarkan (jangan
+      hapus subscription cuma karena gangguan sementara)
+- [x] `vercel.json` baru — cron schedule `"0 5 * * *"` (05:00 UTC =
+      12:00 WIB tiap hari). Vercel Hobby plan (gratis) cuma dukung
+      cron granularity harian, pas dengan kebutuhan sekarang
+- [x] `proxy.ts` — tambah `js` ke daftar ekstensi yang dikecualikan
+      dari auth-gate (buat `/sw.js`). Alasan: browser bisa refetch file
+      service worker ini kapan saja secara otomatis (cek update),
+      termasuk saat session cookie sudah expired — kalau ke-block jadi
+      redirect ke `/login`, HTML halaman login itu malah kesimpen
+      sebagai "isi" service worker dan bikin push rusak
+- [x] Verifikasi lewat akun uji: register → subscribe pakai fake push
+      subscription → `sw.js` bisa diakses selagi authenticated → cron
+      dipanggil dengan secret salah (401) dan benar (200, cerminan
+      `{totalSubscriptions:1, alreadyLogged:0, sent:0, removed:0}` —
+      `sent`/`removed` 0 karena endpoint fake gagal connect, bukan
+      404/410, jadi sengaja TIDAK dihapus — perilaku konservatif yang
+      benar) → tambah Expense hari ini → cron ulang →
+      `alreadyLogged` naik jadi 1, otomatis skip kirim; data &amp;
+      subscription uji dibersihkan
+- [x] tsc, eslint, `pnpm build` bersih (build nunjukkin semua route
+      baru: `/api/cron/daily-reminder`, `/api/push/subscribe`,
+      `/settings` ke-update)
+
+**Belum dikerjakan / catatan buat production**: setelah di-push, user
+perlu manual nambahin `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+`CRON_SECRET` ke Vercel project env vars (Production + Preview) sebelum
+fitur reminder aktif beneran di sana — tanpa itu endpoint cron balas 500
+(VAPID belum dikonfigurasi) dan toggle di Settings tetap tampil tapi
+subscribe-nya bakal gagal diam-diam kalau publicKey kosong di client.
+
+### Bug ditemukan saat verifikasi manual: service worker "nyangkut" di waiting
+
+User tes manual di device sendiri (akun dendijuliano2016@gmail.com) —
+aktifkan notifikasi berhasil (subscription tersimpan di DB, endpoint FCM
+asli), tapi test-push nggak muncul di layar. Root cause: `chrome://
+inspect`/DevTools Application → Service Workers nunjukkin ada DUA versi
+terdaftar — versi lama (`#8573`, dari sesi jauh sebelumnya) masih
+"activated and running" ngontrol tab, versi baru (`#9037`, `sw.js` yang
+baru ditulis) "waiting to activate". Push event dari FCM jatuh ke SW versi
+LAMA yang belum punya push handler → tidak ada yang nampilin notifikasi.
+
+- [x] `public/sw.js` — tambah `self.skipWaiting()` di event `install`
+      dan `self.clients.claim()` di event `activate`, supaya versi baru
+      SW langsung aktif otomatis begitu ke-install (tidak nunggu semua
+      tab lama ditutup dulu) — mencegah masalah yang sama kejadian lagi
+      tiap kali `sw.js` di-update ke depannya
+- [x] Diverifikasi: user klik "skipWaiting" manual di DevTools sekali
+      buat versi yang sudah kepalang nyangkut, abis itu re-send test
+      push → notifikasi "Pundi — Tes Notifikasi" muncul di layar,
+      konfirmasi seluruh pipeline (VAPID → FCM → service worker →
+      notifikasi tampil) jalan end-to-end
+
+## Fase 54b — Reminder Budget Belum Diisi di Awal Bulan (masih gratis)
+
+User minta tambahan: selain reminder harian, juga ada reminder di awal
+bulan buat user yang belum atur budget bulan itu. Digabung ke cron yang
+SAMA (`/api/cron/daily-reminder`, masih jadwal harian 12:00 WIB) —
+bukan bikin cron baru — biar tidak perlu nambah entry di `vercel.json`
+(hemat kalau plan Vercel gratis ada batas jumlah cron job) dan tetap 1x
+trigger per hari yang ngurus dua jenis notifikasi.
+
+- [x] `app/api/cron/daily-reminder/route.ts` — direfactor: helper
+      `sendPush()` dipisah (dipakai bareng buat dua jenis notifikasi,
+      termasuk logic hapus subscription kalau statusnya 404/410).
+      Tambahan logic: `isStartOfMonth` true kalau tanggal WIB sekarang
+      ≤3 (bukan cuma pas tanggal 1 — biar user yang kelewat notifikasi
+      hari pertama masih ke-reminder beberapa hari lagi, otomatis
+      berhenti begitu budget-nya diisi). Kalau `isStartOfMonth`, cek
+      tiap subscriber lewat `getMonthlyBudgetOrDraft(userId,
+      currentMonth)` — kalau `isNew` true (belum ada `MonthlyBudget`
+      tersimpan buat bulan itu, masih draft/propagated preview aja),
+      kirim notifikasi kedua mengarah ke `/budget`
+- [x] Response cron sekarang lebih detail:
+      `{totalSubscriptions, alreadyLoggedToday, isStartOfMonth,
+      budgetPending, expenseReminderSent, budgetReminderSent, removed}`
+      — dua angka `Sent` terpisah biar gampang dibedain jenis
+      notifikasi mana yang berhasil kirim
+- [x] Verifikasi lewat akun uji: register baru (otomatis belum ada
+      budget bulan ini) → subscribe fake → cron run → `budgetPending:1`
+      (terdeteksi benar); simpan budget Juli lewat
+      `PUT /api/monthly-budget` → cron run lagi → `budgetPending:0`
+      (otomatis berhenti begitu budget tersimpan, termasuk konfirmasi
+      propagasi Fase 39 ikut nyimpen 24 bulan ke depan sekaligus jadi
+      alasan kenapa user aktif jarang kena reminder ini — cuma relevan
+      buat user baru/yang belum pernah isi Budget sama sekali)
+- [x] tsc, eslint, `pnpm build` bersih; data &amp; subscription uji
+      dibersihkan
+
+**Catatan**: env var Vercel (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, `CRON_SECRET`) sudah ditambahkan user ke project
+settings — tinggal nunggu commit+push &amp; deploy buat fitur aktif di
+production.

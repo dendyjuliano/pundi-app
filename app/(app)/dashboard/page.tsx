@@ -73,6 +73,12 @@ type MonthlySummary = {
   isBudgetSaved: boolean;
   today: PeriodData | null;
   weeks: WeekData[];
+  insights: {
+    category: "makan" | "lain-lain";
+    direction: "up" | "down";
+    percent: number;
+    message: string;
+  }[];
   monthSummary: {
     makanActual: number;
     lainLainActual: number;
@@ -530,6 +536,33 @@ function MonthlyDashboard({
                   : "[&>div]:bg-amber-500"
               }
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Insight otomatis — bandingin pengeluaran bulan ini vs bulan lalu
+          per kategori, cuma muncul kalau ada perubahan yang cukup besar
+          (lihat INSIGHT_THRESHOLD_PERCENT di lib/dashboardSummary.ts) */}
+      {summary.insights.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+            <IconChip icon={TrendingUp} color="blue" size="sm" />
+            <CardTitle className="text-base">Insight Bulan Ini</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {summary.insights.map((insight) => (
+              <div
+                key={insight.category}
+                className="flex items-center gap-3 text-sm"
+              >
+                {insight.direction === "up" ? (
+                  <TrendingUp className="size-4 text-destructive shrink-0" />
+                ) : (
+                  <TrendingDown className="size-4 text-emerald-600 shrink-0" />
+                )}
+                <span>{insight.message}</span>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
