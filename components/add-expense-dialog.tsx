@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { id as idLocale } from "date-fns/locale";
+import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -22,6 +30,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { CurrencyInput } from "@/components/currency-input";
+
+function parseISODate(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function toISODate(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 function todayISO() {
   const now = new Date();
@@ -37,6 +57,7 @@ export function AddExpenseDialog({
   onSaved?: (dateISO: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
   const [date, setDate] = useState(todayISO());
   const [category, setCategory] = useState<"makan" | "lain-lain">("makan");
   const [amount, setAmount] = useState(0);
@@ -98,12 +119,41 @@ export function AddExpenseDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="expense-date">Tanggal</Label>
-                <Input
-                  id="expense-date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
+                {/* Bukan native <input type="date"> — di iOS Safari
+                    tinggi kontrol native itu suka ngaco/lebih gede dari
+                    h-10 yang kita set, ngga konsisten sama SelectTrigger
+                    di sebelahnya. Popover+Calendar ini render sebagai
+                    button biasa, jadi tingginya presisi sama di semua
+                    platform. */}
+                <Popover open={dateOpen} onOpenChange={setDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="expense-date"
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start font-normal"
+                    >
+                      <CalendarIcon className="size-4" />
+                      {parseISODate(date).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      locale={idLocale}
+                      selected={parseISODate(date)}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        setDate(toISODate(d));
+                        setDateOpen(false);
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label>Kategori</Label>

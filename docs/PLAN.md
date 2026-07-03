@@ -1908,3 +1908,39 @@ trigger per hari yang ngurus dua jenis notifikasi.
 `VAPID_PRIVATE_KEY`, `CRON_SECRET`) sudah ditambahkan user ke project
 settings — tinggal nunggu commit+push &amp; deploy buat fitur aktif di
 production.
+
+## Fase 55 — Bug: Input Tanggal di "Tambah Pengeluaran" Beda Tinggi di iOS
+
+User laporan screenshot dari iPhone (Safari): kotak "Tanggal" di modal
+Tambah Pengeluaran keliatan lebih besar/tinggi dari kotak "Kategori" di
+sebelahnya, walau keduanya sama-sama `h-10` di CSS.
+
+- [x] Percobaan pertama (salah diagnosis): dikira artefak rendering dari
+      kombinasi `backdrop-blur` di `DialogOverlay` + `bg-transparent`
+      di `Input` native `type="date"` — sempet ditambahin
+      `appearance-none bg-background`, tapi user klarifikasi masalahnya
+      soal TINGGI, bukan rendering/background
+- [x] Root cause sebenarnya: `&lt;input type="date"&gt;` itu kontrol
+      NATIVE dari OS — di iOS Safari, tinggi kontrol native ini sering
+      tidak nurut `height`/`h-10` dari CSS kita (dia punya tinggi
+      intrinsik sendiri buat nampilin segmen day/month/year), beda
+      sama `SelectTrigger` yang murni elemen custom kita jadi presisi
+      ikut `h-10`. Ini keterbatasan platform, bukan bug CSS yang bisa
+      dipatch dengan className
+- [x] Fix: install `components/ui/calendar.tsx` + `popover.tsx` (shadcn,
+      nambah dependency `react-day-picker` + `date-fns`), ganti input
+      native jadi `&lt;Popover&gt;` + `&lt;Calendar mode="single"&gt;`
+      dipicu tombol `&lt;Button variant="outline"&gt;` — karena ini
+      elemen custom (bukan native), tingginya presisi ikut `h-10`
+      default Button, PERSIS sama kayak `SelectTrigger` di semua
+      platform (bukan cuma "biasanya sama")
+- [x] `components/add-expense-dialog.tsx` — tambah helper
+      `parseISODate`/`toISODate` buat convert antara string
+      `"YYYY-MM-DD"` (format yang dipakai state `date` &amp; body API,
+      tidak diubah) dengan `Date` object (yang dipakai
+      `Calendar`/`toLocaleDateString`). Kalender pakai locale Indonesia
+      (`date-fns/locale` → `id`)
+- [x] tsc, eslint bersih. Belum sempat `pnpm build` ulang (dev server
+      lagi dipakai user buat tes notifikasi, dihindari supaya tidak
+      ganggu sesi aktifnya) — cukup diverifikasi tsc/eslint + smoke
+      test curl ke dev server yang jalan (Turbopack hot-reload)
