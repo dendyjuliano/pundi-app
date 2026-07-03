@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -72,6 +72,26 @@ export default function OnboardingPage() {
   const [allocationType, setAllocationType] =
     useState<AllocationCategory["type"]>("fixed");
 
+  // Mengunci tombol Tambah/Lanjut/Lewati/Kembali selama ada request yang
+  // masih jalan — supaya klik "Tambah" lalu langsung klik "Lanjut" (sebelum
+  // request pertama selesai) tidak memicu addIncomeCategory dua kali untuk
+  // nama yang sama (flushPendingInput bakal ikut coba nambahin lagi).
+  const submittingCount = useRef(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  function beginSubmit() {
+    submittingCount.current += 1;
+    setSubmitting(true);
+  }
+
+  function endSubmit() {
+    submittingCount.current -= 1;
+    if (submittingCount.current <= 0) {
+      submittingCount.current = 0;
+      setSubmitting(false);
+    }
+  }
+
   useEffect(() => {
     (async () => {
       const [incomeRes, allocationRes] = await Promise.all([
@@ -87,6 +107,35 @@ export default function OnboardingPage() {
     router.push("/dashboard");
   }
 
+  // Ngecek SEMUA input yang mungkin sudah diketik tapi belum di-"Tambah"/
+  // "Simpan" — bukan cuma di step yang lagi aktif. Ini sengaja tidak
+  // bergantung ke `step` karena "Kembali" tidak me-reset teks yang sudah
+  // diketik di step lain: kalau user ngetik di step Income, klik Kembali,
+  // lalu klik Lewati dari step Welcome, teks itu tetap harus ke-flush
+  // walau dia lagi tidak "di" step Income tersebut.
+  async function flushPendingInput() {
+    await Promise.all([
+      incomeName.trim()
+        ? addIncomeCategory(incomeName.trim()).then(
+            (ok) => ok && setIncomeName("")
+          )
+        : Promise.resolve(),
+      !dailyBudgetSaved && Number.isFinite(dailyAmount) && dailyAmount > 0
+        ? saveDailyBudget(dailyAmount)
+        : Promise.resolve(),
+      allocationName.trim()
+        ? addAllocationCategory(allocationName.trim(), allocationType).then(
+            (ok) => ok && setAllocationName("")
+          )
+        : Promise.resolve(),
+    ]);
+  }
+
+  async function skipOnboarding() {
+    await flushPendingInput();
+    goToDashboard();
+  }
+
   function next() {
     setStepIndex((i) => Math.min(STEPS.length - 1, i + 1));
   }
@@ -96,18 +145,23 @@ export default function OnboardingPage() {
   }
 
   async function addIncomeCategory(name: string) {
-    const res = await fetch("/api/income-categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      toast.error("Gagal menambah sumber pemasukan");
-      return false;
+    beginSubmit();
+    try {
+      const res = await fetch("/api/income-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        toast.error("Gagal menambah sumber pemasukan");
+        return false;
+      }
+      const created = await res.json();
+      setIncomeCategories((prev) => [...prev, created]);
+      return true;
+    } finally {
+      endSubmit();
     }
-    const created = await res.json();
-    setIncomeCategories((prev) => [...prev, created]);
-    return true;
   }
 
   async function handleAddIncome(e: React.FormEvent) {
@@ -125,28 +179,32 @@ export default function OnboardingPage() {
   // simpan dulu apa yang sudah diketik sebelum pindah step — supaya tidak
   // ada input yang diam-diam hilang.
   async function nextFromIncome() {
-    if (incomeName.trim() && (await addIncomeCategory(incomeName.trim()))) {
-      setIncomeName("");
-    }
+    await flushPendingInput();
     setStepIndex((i) => Math.min(STEPS.length - 1, i + 1));
   }
 
   async function saveDailyBudget(amount: number) {
-    const res = await fetch("/api/daily-budget-setting", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amountPerDay: amount }),
-    });
-    if (!res.ok) {
-      toast.error("Gagal menyimpan jatah makan harian");
-      return false;
+    beginSubmit();
+    try {
+      const res = await fetch("/api/daily-budget-setting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountPerDay: amount }),
+      });
+      if (!res.ok) {
+        toast.error("Gagal menyimpan jatah makan harian");
+        return false;
+      }
+      setDailyBudgetSaved(true);
+      // Server otomatis membuat kategori alokasi "Makan" kalau belum ada —
+      // refresh daftar kategori supaya langsung kelihatan di step berikutnya.
+      const allocationRes = await fetch("/api/allocation-categories");
+      if (allocationRes.ok)
+        setAllocationCategories(await allocationRes.json());
+      return true;
+    } finally {
+      endSubmit();
     }
-    setDailyBudgetSaved(true);
-    // Server otomatis membuat kategori alokasi "Makan" kalau belum ada —
-    // refresh daftar kategori supaya langsung kelihatan di step berikutnya.
-    const allocationRes = await fetch("/api/allocation-categories");
-    if (allocationRes.ok) setAllocationCategories(await allocationRes.json());
-    return true;
   }
 
   async function handleSaveDailyBudget(e: React.FormEvent) {
@@ -158,9 +216,7 @@ export default function OnboardingPage() {
   }
 
   async function nextFromDailyBudget() {
-    if (!dailyBudgetSaved && Number.isFinite(dailyAmount) && dailyAmount > 0) {
-      await saveDailyBudget(dailyAmount);
-    }
+    await flushPendingInput();
     setStepIndex((i) => Math.min(STEPS.length - 1, i + 1));
   }
 
@@ -168,18 +224,23 @@ export default function OnboardingPage() {
     name: string,
     type: AllocationCategory["type"]
   ) {
-    const res = await fetch("/api/allocation-categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, type }),
-    });
-    if (!res.ok) {
-      toast.error("Gagal menambah pos alokasi");
-      return false;
+    beginSubmit();
+    try {
+      const res = await fetch("/api/allocation-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, type }),
+      });
+      if (!res.ok) {
+        toast.error("Gagal menambah pos alokasi");
+        return false;
+      }
+      const created = await res.json();
+      setAllocationCategories((prev) => [...prev, created]);
+      return true;
+    } finally {
+      endSubmit();
     }
-    const created = await res.json();
-    setAllocationCategories((prev) => [...prev, created]);
-    return true;
   }
 
   async function handleAddAllocation(e: React.FormEvent) {
@@ -196,12 +257,7 @@ export default function OnboardingPage() {
   }
 
   async function nextFromAllocation() {
-    if (
-      allocationName.trim() &&
-      (await addAllocationCategory(allocationName.trim(), allocationType))
-    ) {
-      setAllocationName("");
-    }
+    await flushPendingInput();
     setStepIndex((i) => Math.min(STEPS.length - 1, i + 1));
   }
 
@@ -218,8 +274,9 @@ export default function OnboardingPage() {
           </div>
           {step !== "done" && (
             <button
-              onClick={goToDashboard}
-              className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              onClick={skipOnboarding}
+              disabled={submitting}
+              className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-50"
             >
               Lewati onboarding
             </button>
@@ -318,17 +375,26 @@ export default function OnboardingPage() {
                     value={incomeName}
                     onChange={(e) => setIncomeName(e.target.value)}
                   />
-                  <Button type="submit" variant="secondary" className="shrink-0">
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={submitting}
+                  >
                     Tambah
                   </Button>
                 </form>
 
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" onClick={back}>
+                  <Button variant="outline" onClick={back} disabled={submitting}>
                     <ArrowLeft className="size-4" />
                     Kembali
                   </Button>
-                  <Button className="flex-1" onClick={nextFromIncome}>
+                  <Button
+                    className="flex-1"
+                    onClick={nextFromIncome}
+                    disabled={submitting}
+                  >
                     Lanjut
                     <ArrowRight className="size-4" />
                   </Button>
@@ -362,7 +428,12 @@ export default function OnboardingPage() {
                     value={dailyAmount}
                     onValueChange={setDailyAmount}
                   />
-                  <Button type="submit" variant="secondary" className="shrink-0">
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={submitting}
+                  >
                     Simpan
                   </Button>
                 </form>
@@ -373,11 +444,15 @@ export default function OnboardingPage() {
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" onClick={back}>
+                  <Button variant="outline" onClick={back} disabled={submitting}>
                     <ArrowLeft className="size-4" />
                     Kembali
                   </Button>
-                  <Button className="flex-1" onClick={nextFromDailyBudget}>
+                  <Button
+                    className="flex-1"
+                    onClick={nextFromDailyBudget}
+                    disabled={submitting}
+                  >
                     Lanjut
                     <ArrowRight className="size-4" />
                   </Button>
@@ -453,17 +528,26 @@ export default function OnboardingPage() {
                       <SelectItem value="other">Lain-lain</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button type="submit" variant="secondary" className="shrink-0">
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={submitting}
+                  >
                     Tambah
                   </Button>
                 </form>
 
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" onClick={back}>
+                  <Button variant="outline" onClick={back} disabled={submitting}>
                     <ArrowLeft className="size-4" />
                     Kembali
                   </Button>
-                  <Button className="flex-1" onClick={nextFromAllocation}>
+                  <Button
+                    className="flex-1"
+                    onClick={nextFromAllocation}
+                    disabled={submitting}
+                  >
                     Lanjut
                     <ArrowRight className="size-4" />
                   </Button>
