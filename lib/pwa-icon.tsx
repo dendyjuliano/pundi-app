@@ -3,11 +3,15 @@ const PIGGY_PATH =
 const PIGGY_DOT = "M16 10h.01";
 const PIGGY_EAR = "M2 8v1a2 2 0 0 0 2 2h1";
 
-// Ikon dipakai di beberapa ukuran (favicon apple-touch-icon, manifest icons
-// 192/512, dan versi "maskable" 512 dengan safe-zone lebih besar karena OS
-// Android bisa motong bentuknya jadi lingkaran/squircle). `maskable` bikin
-// background full-bleed persegi (bukan lingkaran) dan piggy glyph-nya
-// diperkecil supaya tetap utuh di dalam safe-zone 80% sesuai spek maskable.app.
+// Ikon dipakai di beberapa ukuran (apple-touch-icon, manifest icons 192/512
+// biasa & "maskable"). SELALU full-bleed persegi tanpa border-radius apa pun
+// — OS (iOS/Android) yang akan motong sendiri jadi rounded-square/squircle/
+// lingkaran sesuai launcher-nya. Kalau kita ikut motong jadi lingkaran di
+// sini, sudut persegi di luar lingkaran itu transparan, dan iOS render area
+// transparan itu jadi HITAM di preview "Add to Home Screen" — makanya
+// jangan pernah pakai borderRadius di komponen ini.
+// `maskable` cuma mempersempit glyph-nya biar tetap utuh di safe-zone 80%
+// sesuai spek maskable.app (Android bisa motong lebih agresif dari iOS).
 export function PwaIcon({
   size,
   maskable = false,
@@ -15,7 +19,7 @@ export function PwaIcon({
   size: number;
   maskable?: boolean;
 }) {
-  const glyphScale = maskable ? 0.5 : 0.72;
+  const glyphScale = maskable ? 0.5 : 0.62;
   const glyphSize = size * glyphScale;
 
   return (
@@ -27,7 +31,6 @@ export function PwaIcon({
         alignItems: "center",
         justifyContent: "center",
         background: "linear-gradient(135deg, #10b981 0%, #0d9488 100%)",
-        borderRadius: maskable ? 0 : size / 2,
       }}
     >
       <svg
