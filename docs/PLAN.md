@@ -2264,3 +2264,57 @@ yang sudah ada aja.
       sendiri (`bottom-3`), padding konten perlu sedikit lebih besar
       biar tidak ketutupan
 - [x] tsc, eslint bersih di seluruh project; smoke test curl
+
+## Fase 59 — Update Panduan &amp; Landing Page (Fitur-Fitur Baru)
+
+Banyak fitur baru ditambahkan sesi ini (notifikasi, pengeluaran
+berulang, target tabungan, insight otomatis, dark mode) tapi belum
+kesebut di halaman Bantuan (in-app) maupun landing page publik.
+
+- [x] `app/(app)/panduan/page.tsx` — array baru `EXTRA_FEATURES` (5
+      item: Notifikasi Pengingat, Pengeluaran Berulang, Target
+      Tabungan, Insight Otomatis, Tema Gelap), section baru "Fitur
+      Tambahan" ditaruh setelah STEPS (5 langkah setup awal) dan
+      sebelum card FAQ — sengaja TIDAK dimasukkan ke STEPS supaya
+      urutan onboarding sekuensial yang sudah ada tidak terganggu (ini
+      "fitur opsional", bukan "langkah wajib"). Reuse persis pola JSX
+      Card yang sama kayak STEPS (IconChip + CardTitle/Description +
+      tombol link)
+- [x] 2 FAQ baru ditambahin ke `FAQS`: kenapa kontribusi Target
+      Tabungan ikut muncul di Pengeluaran (jawab dari diskusi user
+      sebelumnya soal desain ini), dan kenapa belum dapat notifikasi
+      kalau belum diaktifkan manual di Settings
+- [x] `app/page.tsx` (landing page publik) — 5 entry baru ditambah ke
+      `FEATURES` (dari 6 jadi 11 total): Pengingat Otomatis,
+      Pengeluaran Berulang, Target Tabungan, Insight Otomatis, Tema
+      Gelap. Section "Cara Kerja" (4 langkah) TIDAK diubah — sama
+      alasan kayak Panduan, itu alur setup inti bukan daftar fitur
+- [x] tsc, eslint bersih di seluruh project; smoke test curl konfirmasi
+      landing page (200, public route) &amp; Panduan (307 redirect ke
+      login, expected karena request tanpa session) tetap sehat
+
+## Fase 60 — Redesign Section Fitur Landing Page (Dua Tingkat)
+
+User merasa hasil Fase 59 (11 fitur rata di satu grid) kurang oke —
+fitur inti jadi tenggelam sama fitur pelengkap. Direncanakan lewat plan
+mode, user kasih izin "kalau dirombak besar hasilnya lebih baik,
+lakukan saja" termasuk kalau perlu screenshot baru.
+
+- [x] `app/page.tsx` — `FEATURES` dipecah jadi `CORE_FEATURES` (6 item
+      asli, treatment TIDAK berubah — kartu besar `rounded-3xl p-6`,
+      deskripsi lengkap) dan `BONUS_FEATURES` (5 item baru, treatment
+      kompak — `rounded-2xl px-5 py-4` flex-row, cuma judul tanpa
+      deskripsi, grid rapat `grid-cols-5` di desktop). Bonus features
+      ditaruh di bawah core dalam section yang sama, dipisah
+      sub-heading "Makin Lengkap"
+- [x] `SCREENSHOTS` — tambah entry baru **"Target Tabungan"** (`src:
+      "/target.jpeg"`) — **file ini belum ada, user yang akan
+      menyediakan gambarnya** (pola sama kayak 3 screenshot lain yang
+      sudah ada di `/public`). Grid diubah dari `md:grid-cols-3` jadi
+      `sm:grid-cols-2 lg:grid-cols-4` biar rapi buat 4 gambar
+- [x] Hero, Cara Kerja (4 langkah), Final CTA, Footer sengaja TIDAK
+      disentuh — alasan sama kayak Fase 59 (sudah solid/tidak terkait)
+- [x] tsc, eslint bersih di seluruh project; smoke test curl (200);
+      `pnpm build` sukses walau `/public/target.jpeg` belum ada
+      (Next Image asset publik, bukan static import — tidak bikin
+      build gagal, cuma gambar patah di browser sampai file ditaruh)

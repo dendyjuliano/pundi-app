@@ -22,6 +22,11 @@ import {
   BarChart3,
   MessageCircle,
   ArrowRight,
+  Bell,
+  Repeat,
+  Target,
+  TrendingUp,
+  Moon,
 } from "lucide-react";
 import { WHATSAPP_URL } from "@/lib/contact";
 
@@ -73,6 +78,54 @@ const STEPS = [
   },
 ];
 
+const EXTRA_FEATURES = [
+  {
+    icon: Bell,
+    color: "blue" as const,
+    title: "Notifikasi Pengingat",
+    description:
+      "Aktifkan sekali di Settings buat dapat pengingat push: belum ada pengeluaran tercatat hari ini, budget bulan ini belum diisi, atau ada pengeluaran berulang yang jatuh tempo. Cukup 1 tap dari notifikasinya buat langsung mencatat.",
+    href: "/settings",
+    linkLabel: "Aktifkan Notifikasi",
+  },
+  {
+    icon: Repeat,
+    color: "amber" as const,
+    title: "Pengeluaran Berulang",
+    description:
+      "Catat subscription atau tagihan bulanan (mis. Netflix, internet) sekali di Settings. Nanti tiap tanggal jatuh tempo kamu dapat notifikasi buat konfirmasi — nominalnya masih bisa diedit dulu kalau berubah, jadi tidak otomatis tercatat tanpa sepengetahuanmu.",
+    href: "/settings",
+    linkLabel: "Atur Pengeluaran Berulang",
+  },
+  {
+    icon: Target,
+    color: "violet" as const,
+    title: "Target Tabungan",
+    description:
+      "Bikin target nabung buat tujuan tertentu (liburan, dana darurat, dst), catat kontribusi tiap kali menyisihkan uang, dan pantau progress-nya lewat progress bar. Tiap kontribusi otomatis ikut tercatat sebagai pengeluaran juga, supaya Total Bersih di Dashboard tetap akurat.",
+    href: "/target",
+    linkLabel: "Buka Target Tabungan",
+  },
+  {
+    icon: TrendingUp,
+    color: "rose" as const,
+    title: "Insight Otomatis",
+    description:
+      'Dashboard otomatis membandingkan pengeluaran bulan ini dengan bulan lalu per kategori (s.d. tanggal yang sama) — muncul cuma kalau perubahannya cukup besar, jadi kamu bisa langsung sadar kalau ada pola yang berubah signifikan.',
+    href: "/dashboard",
+    linkLabel: "Buka Dashboard",
+  },
+  {
+    icon: Moon,
+    color: "emerald" as const,
+    title: "Tema Gelap",
+    description:
+      "Pilih tampilan Terang, Gelap, atau ikuti pengaturan sistem HP/laptopmu — bisa diganti kapan saja lewat Settings.",
+    href: "/settings",
+    linkLabel: "Ganti Tema",
+  },
+];
+
 const FAQS = [
   {
     question: 'Kenapa pos alokasi "Makan" tidak bisa saya edit manual?',
@@ -107,6 +160,16 @@ const FAQS = [
     answer:
       'Buka halaman Admin, tiap anggota punya tombol "Lihat Dashboard Lengkap". Atau langsung dari Dashboard, admin akan melihat dropdown pemilih anggota di pojok kanan atas untuk berpindah-pindah.',
   },
+  {
+    question: "Kenapa kontribusi Target Tabungan muncul juga di Pengeluaran?",
+    answer:
+      'Sengaja — tiap kontribusi otomatis dicatat sebagai pengeluaran kategori "Lain-lain", supaya Total Bersih dan sisa budget di Dashboard ikut mencerminkan uang yang sudah disisihkan buat nabung. Kalau target-nya dihapus, riwayat pengeluaran yang sudah tercatat tetap ada — cuma progress trackingnya yang hilang.',
+  },
+  {
+    question: "Kenapa saya belum dapat notifikasi pengingat?",
+    answer:
+      'Notifikasi perlu diaktifkan manual dulu — buka Settings > Notifikasi, klik "Aktifkan", lalu izinkan permintaan izin notifikasi dari browser/HP-mu. Tanpa izin itu, browser memang tidak akan pernah mengirim notifikasi apa pun.',
+  },
 ];
 
 export default function PanduanPage() {
@@ -137,6 +200,38 @@ export default function PanduanPage() {
               <Button asChild variant="outline" size="sm">
                 <Link href={step.href}>
                   {step.linkLabel}
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div>
+        <h2 className="text-lg font-bold tracking-tight">Fitur Tambahan</h2>
+        <p className="text-sm text-muted-foreground">
+          Opsional, tapi bisa bantu kamu lebih rajin mencatat tanpa harus
+          selalu ingat sendiri
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {EXTRA_FEATURES.map((feature) => (
+          <Card key={feature.title}>
+            <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+              <IconChip icon={feature.icon} color={feature.color} />
+              <div className="flex-1">
+                <CardTitle className="text-base">{feature.title}</CardTitle>
+                <CardDescription className="mt-1">
+                  {feature.description}
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline" size="sm">
+                <Link href={feature.href}>
+                  {feature.linkLabel}
                   <ArrowRight className="size-3.5" />
                 </Link>
               </Button>

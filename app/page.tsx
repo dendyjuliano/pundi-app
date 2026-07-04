@@ -13,6 +13,11 @@ import {
   LayoutDashboard,
   Layers,
   Sparkles,
+  Bell,
+  Repeat,
+  Target,
+  TrendingUp,
+  Moon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GradientBlobs } from "@/components/gradient-blobs";
@@ -21,7 +26,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-const FEATURES = [
+const CORE_FEATURES = [
   {
     icon: Wallet,
     title: "Pemasukan Multi-Sumber",
@@ -60,6 +65,16 @@ const FEATURES = [
   },
 ];
 
+// Fitur pelengkap — ditampilkan lebih ringkas (bukan kartu besar kayak
+// CORE_FEATURES) biar fitur inti di atas tetap yang paling menonjol.
+const BONUS_FEATURES = [
+  { icon: Bell, title: "Pengingat Otomatis" },
+  { icon: Repeat, title: "Pengeluaran Berulang" },
+  { icon: Target, title: "Target Tabungan" },
+  { icon: TrendingUp, title: "Insight Otomatis" },
+  { icon: Moon, title: "Tema Gelap" },
+];
+
 const STEPS = [
   { icon: Settings, label: "Atur kategori & jatah makan" },
   { icon: Wallet, label: "Isi budget bulanan" },
@@ -71,6 +86,7 @@ const SCREENSHOTS = [
   { label: "Dashboard", src: "/dashboard.jpeg" },
   { label: "Budget Bulanan", src: "/budget.jpeg" },
   { label: "Reports & Grafik", src: "/report.jpeg" },
+  { label: "Target Tabungan", src: "/target.jpeg" },
 ];
 
 function ScreenshotFrame({
@@ -219,7 +235,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURES.map((f) => (
+            {CORE_FEATURES.map((f) => (
               <div
                 key={f.title}
                 className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 space-y-4 transition-colors hover:bg-white/[0.06]"
@@ -233,6 +249,29 @@ export default function LandingPage() {
                 </p>
               </div>
             ))}
+          </div>
+
+          <div className="space-y-6">
+            <div className="text-center space-y-1.5">
+              <h3 className="text-xl font-semibold">Makin Lengkap</h3>
+              <p className="text-sm text-zinc-400">
+                Fitur tambahan yang bikin kamu makin rajin mencatat, tanpa
+                harus selalu ingat sendiri.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              {BONUS_FEATURES.map((f) => (
+                <div
+                  key={f.title}
+                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 transition-colors hover:bg-white/[0.06]"
+                >
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400">
+                    <f.icon className="size-4" />
+                  </div>
+                  <p className="text-sm font-medium">{f.title}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -282,7 +321,7 @@ export default function LandingPage() {
               Di HP maupun laptop, semuanya tetap enak dilihat.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {SCREENSHOTS.map((s) => (
               <ScreenshotFrame key={s.label} label={s.label} src={s.src} />
             ))}
