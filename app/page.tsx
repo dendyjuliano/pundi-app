@@ -125,7 +125,7 @@ function ScreenshotFrame({
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-linear-to-b from-emerald-50 via-background to-background">
+    <div className="min-h-screen bg-linear-to-b from-emerald-50 dark:from-emerald-950/30 via-background to-background">
       {/* Header + Hero share one clipping wrapper so the decorative blob
           glow is continuous behind the floating nav instead of cutting
           off right at the hero section's top edge. */}
@@ -142,7 +142,10 @@ export default function LandingPage() {
               <span className="font-semibold">Pundi</span>
             </div>
             <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-medium text-muted-foreground sm:flex">
-              <a href="#fitur" className="transition-colors hover:text-foreground">
+              <a
+                href="#fitur"
+                className="transition-colors hover:text-foreground"
+              >
                 Fitur
               </a>
               <a
@@ -159,7 +162,12 @@ export default function LandingPage() {
               </a>
             </nav>
             <div className="flex items-center gap-1.5">
-              <Button asChild variant="ghost" size="sm" className="rounded-full">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="rounded-full"
+              >
                 <Link href="/login">Masuk</Link>
               </Button>
               <Button
@@ -176,7 +184,7 @@ export default function LandingPage() {
         {/* Hero */}
         <section className="relative px-4 pt-14 pb-16 sm:px-8 sm:pt-20">
           <div className="relative mx-auto max-w-4xl text-center space-y-7">
-            <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-4 py-1.5 text-sm font-medium text-emerald-700 shadow-sm backdrop-blur">
+            <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-4 py-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 shadow-sm backdrop-blur">
               <Sparkles className="size-3.5" />
               Kelola keuangan keluarga jadi lebih mudah
             </div>
@@ -205,7 +213,12 @@ export default function LandingPage() {
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="rounded-full px-8">
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="rounded-full px-8"
+              >
                 <Link href="/login">Sudah punya akun? Masuk</Link>
               </Button>
             </div>
@@ -255,8 +268,8 @@ export default function LandingPage() {
             <div className="text-center space-y-1.5">
               <h3 className="text-xl font-semibold">Makin Lengkap</h3>
               <p className="text-sm text-zinc-400">
-                Fitur tambahan yang bikin kamu makin rajin mencatat, tanpa
-                harus selalu ingat sendiri.
+                Fitur tambahan yang bikin kamu makin rajin mencatat, tanpa harus
+                selalu ingat sendiri.
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -277,7 +290,7 @@ export default function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section id="cara-kerja" className="px-4 py-24 sm:px-8">
+      <section id="cara-kerja" className="px-4 py-24 sm:px-8 dark:bg-muted/60">
         <div className="mx-auto max-w-5xl space-y-16">
           <div className="mx-auto max-w-xl text-center space-y-3">
             <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600">
@@ -296,7 +309,7 @@ export default function LandingPage() {
               >
                 <div className="relative flex size-12 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/25">
                   <s.icon className="size-5" />
-                  <span className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border-2 border-background bg-zinc-900 text-[10px] font-bold text-white">
+                  <span className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full border-2 border-background bg-foreground text-[10px] font-bold text-background">
                     {i + 1}
                   </span>
                 </div>
@@ -308,7 +321,7 @@ export default function LandingPage() {
       </section>
 
       {/* Screenshots */}
-      <section id="tampilan" className="bg-muted/30 px-4 py-24 sm:px-8">
+      <section id="tampilan" className="px-4 py-24 sm:px-8">
         <div className="mx-auto max-w-6xl space-y-16">
           <div className="mx-auto max-w-xl text-center space-y-3">
             <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600">
@@ -337,8 +350,8 @@ export default function LandingPage() {
             Siap mulai kelola keuangan lebih rapi?
           </h2>
           <p className="text-lg text-emerald-50/85">
-            Daftar gratis, langsung bisa dipakai — tidak perlu kartu kredit
-            atau setup rumit.
+            Daftar gratis, langsung bisa dipakai — tidak perlu kartu kredit atau
+            setup rumit.
           </p>
           <div className="flex justify-center pt-2">
             <Button
@@ -367,15 +380,18 @@ export default function LandingPage() {
                 <span className="text-lg font-semibold text-white">Pundi</span>
               </div>
               <p className="max-w-xs text-sm">
-                Kelola pemasukan, alokasi, dan pengeluaran harian keluarga
-                dalam satu tempat.
+                Kelola pemasukan, alokasi, dan pengeluaran harian keluarga dalam
+                satu tempat.
               </p>
             </div>
             <div className="space-y-3">
               <p className="text-sm font-semibold text-white">Produk</p>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href="#fitur" className="transition-colors hover:text-white">
+                  <a
+                    href="#fitur"
+                    className="transition-colors hover:text-white"
+                  >
                     Fitur
                   </a>
                 </li>
@@ -401,7 +417,10 @@ export default function LandingPage() {
               <p className="text-sm font-semibold text-white">Akun</p>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <Link href="/login" className="transition-colors hover:text-white">
+                  <Link
+                    href="/login"
+                    className="transition-colors hover:text-white"
+                  >
                     Masuk
                   </Link>
                 </li>
