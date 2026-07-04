@@ -22,6 +22,7 @@ export async function POST(request: Request) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const amount = Number(body.amount);
   const dayOfMonth = Number(body.dayOfMonth);
+  const frequency = body.frequency === "yearly" ? "yearly" : "monthly";
 
   if (!name) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
@@ -39,12 +40,25 @@ export async function POST(request: Request) {
     );
   }
 
+  let month: number | undefined;
+  if (frequency === "yearly") {
+    month = Number(body.month);
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return NextResponse.json(
+        { error: "month is required (1-12) when frequency is yearly" },
+        { status: 400 }
+      );
+    }
+  }
+
   await connectToDatabase();
   const item = await RecurringExpense.create({
     userId: user.id,
     name,
     amount,
     dayOfMonth,
+    frequency,
+    month,
   });
   return NextResponse.json(item, { status: 201 });
 }

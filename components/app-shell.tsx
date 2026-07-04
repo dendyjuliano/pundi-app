@@ -15,12 +15,10 @@ import {
   HelpCircle,
   MessageCircle,
   Target,
+  CreditCard,
   MoreHorizontal,
 } from "lucide-react";
-import {
-  Avatar,
-  AvatarFallback,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +56,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/expenses", label: "Pengeluaran", icon: Receipt },
       { href: "/budget", label: "Budget", icon: Wallet },
       { href: "/target", label: "Target", icon: Target },
+      { href: "/installments", label: "Cicilan", icon: CreditCard },
     ],
   },
   {
@@ -80,11 +79,17 @@ const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items);
 // icons was too cramped, and Reports/Settings are checked less often than
 // Dashboard/Pengeluaran/Budget/Target.
 const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) =>
-  ["/dashboard", "/expenses", "/budget", "/target"].includes(item.href)
+  ["/dashboard", "/expenses", "/budget", "/target"].includes(item.href),
 );
 
 // Routes that should light up the "More" tab as active when visited.
-const MORE_MENU_ROUTES = ["/reports", "/settings", "/admin", "/panduan"];
+const MORE_MENU_ROUTES = [
+  "/installments",
+  "/reports",
+  "/settings",
+  "/admin",
+  "/panduan",
+];
 
 function initials(name: string) {
   return name
@@ -106,7 +111,7 @@ export function AppShell({
   const visibleNavGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => !item.adminOnly || user.role === "admin"
+      (item) => !item.adminOnly || user.role === "admin",
     ),
   })).filter((group) => group.items.length > 0);
 
@@ -139,7 +144,7 @@ export function AppShell({
                       "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
                       active
                         ? "bg-linear-to-r from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/25"
-                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     )}
                   >
                     <Icon className="size-4" />
@@ -157,7 +162,7 @@ export function AppShell({
               "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
               pathname.startsWith("/panduan")
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             )}
           >
             <HelpCircle className="size-4" />
@@ -283,14 +288,14 @@ export function AppShell({
                 href={item.href}
                 className={cn(
                   "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-transform active:scale-95",
-                  active ? "text-emerald-600" : "text-muted-foreground"
+                  active ? "text-emerald-600" : "text-muted-foreground",
                 )}
               >
                 <span
                   className={cn(
                     "flex items-center justify-center rounded-full size-8 transition-colors",
                     active &&
-                      "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30"
+                      "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30",
                   )}
                 >
                   <Icon className="size-4.5" />
@@ -302,21 +307,21 @@ export function AppShell({
 
           {(() => {
             const moreActive = MORE_MENU_ROUTES.some((r) =>
-              pathname.startsWith(r)
+              pathname.startsWith(r),
             );
             return (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   className={cn(
                     "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-transform active:scale-95",
-                    moreActive ? "text-emerald-600" : "text-muted-foreground"
+                    moreActive ? "text-emerald-600" : "text-muted-foreground",
                   )}
                 >
                   <span
                     className={cn(
                       "flex items-center justify-center rounded-full size-8 transition-colors",
                       moreActive &&
-                        "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30"
+                        "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30",
                     )}
                   >
                     <MoreHorizontal className="size-4.5" />
@@ -324,6 +329,12 @@ export function AppShell({
                   More
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" side="top" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link href="/installments">
+                      <CreditCard className="size-4" />
+                      Cicilan
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/reports">
                       <BarChart3 className="size-4" />

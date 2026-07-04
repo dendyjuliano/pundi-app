@@ -2646,3 +2646,159 @@ dipakai buat reminder harian (`app/api/cron/daily-reminder/route.ts`).
       kode aman end-to-end walau penerimaan aktual belum bisa
       dites tanpa browser sungguhan
 - [x] tsc, eslint bersih; `pnpm build` sukses; data uji dibersihkan
+
+## Fase 67 — Fitur Cicilan (Installment Tracking dengan Bunga)
+
+Lanjutan diskusi arah pengembangan — user tertarik nambah tracking
+cicilan (KPR, motor, kartu kredit), yang beda bentuknya dari fitur
+yang sudah ada: beda dari `RecurringExpense` (berulang TANPA batas)
+karena cicilan punya TENOR terbatas &amp; progress lunas; beda dari
+`SavingsGoal` (uang MASUK) karena cicilan adalah uang KELUAR melunasi
+utang. Dikonfirmasi lewat AskUserQuestion (4 putaran), keputusan
+kunci: (1) bunga cuma dipakai SEKALI di awal buat hitung nominal
+cicilan/bulan lewat amortisasi, bukan buat nge-track rincian pokok-vs-
+bunga tiap pembayaran; (2) dua jenis bunga didukung — Flat (motor/
+elektronik) &amp; Efektif/Anuitas (KPR/bank) — user pilih pas bikin
+cicilan baru; (3) reuse pola pengingat Pengeluaran Berulang (push
+bulanan, tap buat konfirmasi); (4) personal per akun dulu, belum
+collaborative kayak Target Tabungan Bersama.
+
+- [x] `models/Installment.ts` (baru) — `interestType` (flat/efektif),
+      `principal`/`annualInterestRate`/`tenorMonths` (CUMA dipakai
+      sekali buat hitung `monthlyInstallment` saat dibuat, sengaja
+      TIDAK bisa diedit lagi setelahnya), `dayOfMonth` (pola sama
+      persis `RecurringExpense`), `active` (false = lunas OTOMATIS
+      atau dihentikan manual)
+- [x] `models/InstallmentPayment.ts` (baru) — pola identik
+      `SavingsContribution`: running-log pembayaran, tiap create
+      otomatis bikin `Expense` terkait via `expenseId`
+- [x] `lib/installment.ts` (baru) — `calculateMonthlyInstallment()`,
+      pure function (bisa diimport client buat live-preview DAN
+      server saat create): Flat =
+      `pokok/tenor + pokok×suku_bunga/100/12`; Efektif/Anuitas =
+      rumus anuitas standar `pokok×r×(1+r)^n / ((1+r)^n−1)` dengan
+      fallback ke pembagian rata kalau `r=0`. Divalidasi manual lewat
+      Node script: pokok 24jt/bunga 8%/tenor 24bln → Flat Rp1.160.000,
+      Efektif Rp1.085.455 (efektif lebih murah dari flat buat suku
+      bunga nominal sama — sesuai fakta umum cicilan)
+- [x] `app/api/installments/**` (baru, 4 route file) — list+progress
+      (agregat `InstallmentPayment` per cicilan: `monthsPaid`,
+      `totalPaid`, `remainingMonths`, `remainingAmount`, `lunas`),
+      create, edit (cuma `name`/`monthlyInstallment`/`dayOfMonth`/
+      `active`), delete (cascade `InstallmentPayment`, Expense
+      historis TETAP ADA — prinsip sama `SavingsGoal`), payments
+      (create Expense+Payment atomik, auto-set `active:false` kalau
+      `monthsPaid >= tenorMonths`), delete payment (cascade Expense,
+      auto-balikin `active:true` kalau sebelumnya ke-mark lunas gara-
+      gara payment yang dihapus)
+- [x] `app/api/cron/daily-reminder/route.ts` — blok ke-4 (paralel
+      pengeluaran berulang): cicilan jatuh tempo hari ini dapat push
+      `"{nama} {nominal} jatuh tempo hari ini — tap buat catat"`, url
+      `/dashboard?confirmInstallment=<id>`
+- [x] `components/confirm-installment-dialog.tsx` (baru) — pola dual
+      controlled/uncontrolled + `confirmOnClose` SAMA PERSIS
+      `AddExpenseDialog`, tapi POST ke
+      `/api/installments/[id]/payments` (bukan `/api/expenses`
+      langsung) karena butuh nyimpen `InstallmentPayment` juga, bukan
+      cuma `Expense`
+- [x] `app/(app)/dashboard/page.tsx` — tambah handling
+      `?confirmInstallment=<id>` (pola sama persis
+      `?confirmRecurring=<id>` yang sudah ada), render
+      `ConfirmInstallmentDialog` terkontrol ter-prefill
+- [x] `app/(app)/installments/page.tsx` (baru) — meniru struktur
+      `target/page.tsx`: list card progress bulan ke-X dari Y +
+      riwayat pembayaran collapsible + form tambah dengan **live
+      preview** nominal cicilan/bulan (pakai `calculateMonthlyInstallment`
+      client-side, update real-time saat user ngetik pokok/bunga/tenor)
+- [x] `components/app-shell.tsx` — nav item "Cicilan" ditambah ke grup
+      "Input" (desktop sidebar) DAN ke menu "More" mobile (baru sadar
+      pola bottom-tab-bar mobile itu HARDCODE 4 rute tetap + dropdown
+      "More" yang list item-nya juga manual, bukan auto-generate dari
+      `NAV_GROUPS` — kalau cuma nambah ke `NAV_GROUPS` doang, halaman
+      baru jadi TIDAK bisa diakses sama sekali dari mobile)
+- [x] Verifikasi lewat 2 akun uji (1 family beda + 1 family lain buat
+      cek isolasi): bikin cicilan Flat &amp; Efektif → `monthlyInstallment`
+      tersimpan PERSIS sesuai hasil validasi formula manual → bayar 1x
+      → `Expense` muncul benar (kategori lain-lain, note "Cicilan:
+      {nama}") → progress ke-update benar → cicilan tenor pendek (2
+      bulan) dibayar sampai lunas → `active` otomatis `false` →hapus
+      1 payment terakhir → `active` balik `true` (bukan lunas lagi) →
+      `Expense` terkait ikut kehapus → user family lain coba akses/
+      bayar cicilan orang lain → 404 di semua endpoint → cron
+      reminder: `installmentDue: 1` terdeteksi benar buat cicilan
+      `dayOfMonth` = hari ini, push subscription palsu tetap utuh
+      sesudahnya (gagal kirim tidak merusak data, sama pola Fase 66)
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/installments` masuk
+      daftar route); data uji (2 akun, 2 family) dibersihkan
+
+### Follow-up: Soft Warning Debt-to-Income di Form Cicilan Baru
+
+User tanya gimana kalau nominal cicilan/bulan ternyata lebih besar dari
+pemasukan bulanan user. Diskusi &amp; dikonfirmasi: soft warning (bukan
+blocker — konsisten sama filosofi app ini, overspending pengeluaran
+biasa juga cuma ditandai "Melenceng" di Dashboard, tidak pernah
+diblokir), muncul LIVE saat user masih ngetik di form (bukan setelah
+disimpan) — reuse mekanisme live-preview nominal cicilan yang sudah
+ada, tinggal ditambah baris rasio.
+
+- [x] `app/(app)/installments/page.tsx` — fetch `totalIncome` bulan
+      berjalan sekali saat halaman dibuka (`GET /api/monthly-budget?
+      month=<bulan-ini>`, endpoint yang sudah ada, dipakai luas di
+      halaman lain); live preview nominal cicilan yang sudah ada
+      diperluas nampilin juga persentase dari pemasukan
+      (`Rp X (Y% dari pemasukan bulan ini)`); kalau rasio &gt; 30%
+      (`DEBT_TO_INCOME_WARNING_RATIO`, rule-of-thumb debt-to-income
+      umum dipakai bank buat nilai kelayakan kredit) — muncul banner
+      soft warning (`bg-amber-50 ring-amber-200`, pola sama persis
+      banner warning yang sudah ada di Dashboard), TETAP bisa disimpan
+      kalau user pilih lanjut
+- [x] Verifikasi lewat akun uji: set income bulan ini Rp5.000.000 lewat
+      `PUT /api/monthly-budget` → cek `GET /api/monthly-budget?month=`
+      balikin `totalIncome: 5000000` (field name persis yang dipakai
+      client) → hitung manual: cicilan Rp2.160.000/bulan → rasio 43,2%
+      (di atas 30%, warning harusnya muncul), cicilan Rp1.160.000/bulan
+      → rasio 23,2% (di bawah 30%, tidak ada warning) — logika
+      terverifikasi benar dari data API, rendering client tidak
+      di-screenshot sesuai preferensi user
+- [x] tsc, eslint bersih; `pnpm build` sukses; data uji dibersihkan
+
+## Fase 68 — Pengeluaran Berulang Tahunan (bukan cuma Bulanan)
+
+User tanya apakah Pengeluaran Berulang bisa nambah opsi pencatatan
+tahunan (mis. pajak kendaraan/STNK, asuransi tahunan), bukan cuma
+bulanan seperti sekarang. Disetujui — perubahan aditif, backward-
+compatible tanpa migrasi data.
+
+- [x] `models/RecurringExpense.ts` — tambah `frequency` (enum
+      monthly/yearly, default "monthly") &amp; `month` (1-12, cuma
+      relevan kalau `frequency === "yearly"`)
+- [x] `app/api/recurring-expenses/route.ts` (POST) &amp;
+      `[id]/route.ts` (PATCH) — terima `frequency`/`month`, validasi
+      `month` wajib diisi (1-12) kalau `frequency: "yearly"`; PATCH
+      otomatis kosongkan `month` kalau dibalik ke "monthly"
+- [x] `app/api/cron/daily-reminder/route.ts` — query jatuh tempo
+      diperluas: item "yearly" cuma dianggap jatuh tempo kalau
+      `dayOfMonth` DAN `month` dua-duanya cocok, bukan tiap bulan
+      kayak sebelumnya. Sengaja pakai `frequency: { $ne: "yearly" }`
+      (bukan `frequency: "monthly"`) di sisi "bukan yearly" — biar item
+      LAMA yang dibuat sebelum field ini ada (belum kesimpen di DB sama
+      sekali) tetap otomatis ke-anggap bulanan TANPA perlu migrasi
+      data, karena filter database-level tidak melewati default schema
+      Mongoose kalau field-nya memang tidak ada di dokumen
+- [x] `app/(app)/settings/page.tsx` — form tambah &amp; mode edit
+      Pengeluaran Berulang dapat Select "Bulanan/Tahunan", dengan
+      Select bulan (Jan-Des) yang cuma muncul kalau "Tahunan" dipilih;
+      badge item di list nampilin "{Bulan} Tgl {tanggal}" buat yang
+      tahunan; fix bug kecil sekalian: cek "dueToday" (buat langsung
+      munculin dialog konfirmasi kalau tanggal yang baru ditambah PAS
+      hari ini) sebelumnya cuma cek `dayOfMonth`, sekarang juga ikut
+      cek `month` biar item tahunan bulan lain tidak salah ke-anggap
+      jatuh tempo hari ini
+- [x] Verifikasi lewat akun uji: bikin 3 item (yearly bulan ini+hari
+      ini, yearly bulan lain+hari ini, monthly hari ini) → query
+      langsung ke DB pakai logika `$or` yang sama persis cron → cuma 2
+      dari 3 yang benar ke-anggap jatuh tempo (yearly bulan lain
+      TIDAK, sesuai ekspektasi) → coba bikin yearly tanpa `month` →
+      400 sesuai validasi
+- [x] tsc, eslint bersih; restart `pnpm dev` preventif (schema
+      berubah); `pnpm build` sukses; data uji dibersihkan

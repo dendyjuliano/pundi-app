@@ -57,8 +57,15 @@ type RecurringExpense = {
   name: string;
   amount: number;
   dayOfMonth: number;
+  frequency: "monthly" | "yearly";
+  month?: number;
   active: boolean;
 };
+
+const MONTH_LABEL = [
+  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+];
 
 const ALLOCATION_TYPE_LABEL: Record<string, string> = {
   fixed: "Fixed Cost",
@@ -100,6 +107,10 @@ export default function SettingsPage() {
   const [recurringName, setRecurringName] = useState("");
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringDay, setRecurringDay] = useState("1");
+  const [recurringFrequency, setRecurringFrequency] = useState<
+    "monthly" | "yearly"
+  >("monthly");
+  const [recurringMonth, setRecurringMonth] = useState("1");
 
   const [editingIncomeId, setEditingIncomeId] = useState<string | null>(null);
   const [editingIncomeName, setEditingIncomeName] = useState("");
@@ -117,6 +128,10 @@ export default function SettingsPage() {
   const [editingRecurringName, setEditingRecurringName] = useState("");
   const [editingRecurringAmount, setEditingRecurringAmount] = useState(0);
   const [editingRecurringDay, setEditingRecurringDay] = useState("1");
+  const [editingRecurringFrequency, setEditingRecurringFrequency] = useState<
+    "monthly" | "yearly"
+  >("monthly");
+  const [editingRecurringMonth, setEditingRecurringMonth] = useState("1");
 
   async function loadAll() {
     const [incomeRes, allocationRes, budgetRes, recurringRes] =
@@ -280,6 +295,8 @@ export default function SettingsPage() {
         name: recurringName.trim(),
         amount: recurringAmount,
         dayOfMonth: Number(recurringDay),
+        frequency: recurringFrequency,
+        month: recurringFrequency === "yearly" ? Number(recurringMonth) : undefined,
       }),
     });
     if (!res.ok) {
@@ -287,7 +304,10 @@ export default function SettingsPage() {
       return;
     }
     const created = await res.json();
-    const dueToday = created.dayOfMonth === new Date().getDate();
+    const now = new Date();
+    const dueToday =
+      created.dayOfMonth === now.getDate() &&
+      (created.frequency !== "yearly" || created.month === now.getMonth() + 1);
     toast.success(
       dueToday
         ? `"${recurringName.trim()}" ditambahkan — tanggalnya hari ini, langsung konfirmasi di form yang muncul`
@@ -305,6 +325,8 @@ export default function SettingsPage() {
     setRecurringName("");
     setRecurringAmount(0);
     setRecurringDay("1");
+    setRecurringFrequency("monthly");
+    setRecurringMonth("1");
     loadAll();
   }
 
@@ -313,6 +335,8 @@ export default function SettingsPage() {
     setEditingRecurringName(item.name);
     setEditingRecurringAmount(item.amount);
     setEditingRecurringDay(String(item.dayOfMonth));
+    setEditingRecurringFrequency(item.frequency);
+    setEditingRecurringMonth(String(item.month ?? 1));
   }
 
   function cancelEditRecurringExpense() {
@@ -329,6 +353,11 @@ export default function SettingsPage() {
         name: editingRecurringName.trim(),
         amount: editingRecurringAmount,
         dayOfMonth: Number(editingRecurringDay),
+        frequency: editingRecurringFrequency,
+        month:
+          editingRecurringFrequency === "yearly"
+            ? Number(editingRecurringMonth)
+            : undefined,
       }),
     });
     if (!res.ok) {
@@ -703,7 +732,8 @@ export default function SettingsPage() {
           <div>
             <CardTitle>Pengeluaran Berulang</CardTitle>
             <CardDescription>
-              Subscription/tagihan bulanan — kamu dapat notifikasi buat
+              Subscription/tagihan bulanan atau tahunan (mis. pajak
+              kendaraan, asuransi) — kamu dapat notifikasi buat
               konfirmasi tiap tanggal jatuh tempo (tidak otomatis
               tercatat begitu saja). Kalau tanggal yang dipilih pas
               hari ini, form konfirmasinya langsung muncul begitu
@@ -760,6 +790,37 @@ export default function SettingsPage() {
                           )}
                         </SelectContent>
                       </Select>
+                      <Select
+                        value={editingRecurringFrequency}
+                        onValueChange={(v) =>
+                          setEditingRecurringFrequency(v as "monthly" | "yearly")
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-28">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Bulanan</SelectItem>
+                          <SelectItem value="yearly">Tahunan</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {editingRecurringFrequency === "yearly" && (
+                        <Select
+                          value={editingRecurringMonth}
+                          onValueChange={setEditingRecurringMonth}
+                        >
+                          <SelectTrigger className="h-9 w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MONTH_LABEL.map((label, i) => (
+                              <SelectItem key={i} value={String(i + 1)}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -790,7 +851,14 @@ export default function SettingsPage() {
                       <Badge variant="secondary">
                         {formatRupiah(item.amount)}
                       </Badge>
-                      <Badge variant="secondary">Tgl {item.dayOfMonth}</Badge>
+                      <Badge variant="secondary">
+                        {item.frequency === "yearly"
+                          ? `${MONTH_LABEL[(item.month ?? 1) - 1]} Tgl ${item.dayOfMonth}`
+                          : `Tgl ${item.dayOfMonth}`}
+                      </Badge>
+                      {item.frequency === "yearly" && (
+                        <Badge variant="secondary">Tahunan</Badge>
+                      )}
                       {!item.active && (
                         <Badge variant="secondary">Nonaktif</Badge>
                       )}
@@ -829,7 +897,7 @@ export default function SettingsPage() {
           )}
           <form
             onSubmit={handleAddRecurringExpense}
-            className="flex flex-col sm:flex-row sm:items-center gap-2"
+            className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2"
           >
             <Input
               placeholder="Nama (mis. Netflix)"
@@ -853,6 +921,34 @@ export default function SettingsPage() {
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={recurringFrequency}
+              onValueChange={(v) =>
+                setRecurringFrequency(v as "monthly" | "yearly")
+              }
+            >
+              <SelectTrigger className="sm:w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">Bulanan</SelectItem>
+                <SelectItem value="yearly">Tahunan</SelectItem>
+              </SelectContent>
+            </Select>
+            {recurringFrequency === "yearly" && (
+              <Select value={recurringMonth} onValueChange={setRecurringMonth}>
+                <SelectTrigger className="sm:w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTH_LABEL.map((label, i) => (
+                    <SelectItem key={i} value={String(i + 1)}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Button type="submit">Tambah</Button>
           </form>
         </CardContent>

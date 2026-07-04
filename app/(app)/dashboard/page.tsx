@@ -28,6 +28,7 @@ import { GradientBlobs } from "@/components/gradient-blobs";
 import { RadialProgress } from "@/components/radial-progress";
 import { IconChip } from "@/components/icon-chip";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
+import { ConfirmInstallmentDialog } from "@/components/confirm-installment-dialog";
 import { SavingsGoalNudgeBanner } from "@/components/savings-goal-nudge-banner";
 import {
   Receipt,
@@ -834,6 +835,31 @@ function DashboardContent() {
     })();
   }, [confirmRecurringId]);
 
+  // Sama pola persis confirmRecurringId di atas, tapi buat cicilan —
+  // dipicu dari link notifikasi push "cicilan jatuh tempo"
+  // (?confirmInstallment=<id>).
+  const confirmInstallmentId = searchParams.get("confirmInstallment");
+  const [installmentPrefill, setInstallmentPrefill] = useState<{
+    id: string;
+    name: string;
+    amount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!confirmInstallmentId) return;
+    (async () => {
+      const res = await fetch(`/api/installments/${confirmInstallmentId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInstallmentPrefill({
+          id: confirmInstallmentId,
+          name: data.name,
+          amount: data.monthlyInstallment,
+        });
+      }
+    })();
+  }, [confirmInstallmentId]);
+
   // Admin only: load the member list once session is ready, for the "lihat
   // dashboard anggota lain" selector.
   useEffect(() => {
@@ -893,6 +919,24 @@ function DashboardContent() {
           initialNote={recurringPrefill.note}
           title="Konfirmasi Pengeluaran Berulang"
           description={`"${recurringPrefill.note}" jatuh tempo hari ini — cek dulu nominalnya (bisa diedit) sebelum disimpan`}
+          confirmOnClose
+          onSaved={() => refresh()}
+        />
+      )}
+
+      {installmentPrefill && (
+        <ConfirmInstallmentDialog
+          key={installmentPrefill.id}
+          installmentId={installmentPrefill.id}
+          installmentName={installmentPrefill.name}
+          defaultAmount={installmentPrefill.amount}
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              setInstallmentPrefill(null);
+              router.replace("/dashboard");
+            }
+          }}
           confirmOnClose
           onSaved={() => refresh()}
         />

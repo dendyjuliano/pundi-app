@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Expense from "@/models/Expense";
 import PushSubscription from "@/models/PushSubscription";
 import RecurringExpense from "@/models/RecurringExpense";
+import Installment from "@/models/Installment";
 import { getMonthlyBudgetOrDraft } from "@/lib/monthlyBudget";
 import { toMonthString } from "@/lib/dashboardSummary";
 import { formatRupiah } from "@/lib/format";
@@ -74,11 +75,20 @@ export async function GET(request: Request) {
   }
 
   // 3. Pengeluaran berulang yang jatuh tempo hari ini (dikelompokkan per
-  // user karena satu user bisa punya beberapa item jatuh tempo bareng)
+  // user karena satu user bisa punya beberapa item jatuh tempo bareng).
+  // Item "yearly" cuma jatuh tempo kalau BULAN-nya juga cocok, bukan
+  // tiap bulan kayak "monthly" — `frequency: { $ne: "yearly" }` sengaja
+  // dipakai (bukan `frequency: "monthly"`) biar item lama yang dibuat
+  // sebelum field `frequency` ada (belum kesimpen di DB sama sekali)
+  // tetap ke-anggap "monthly" tanpa perlu migrasi data.
   const dueRecurringExpenses = await RecurringExpense.find({
     userId: { $in: subscriberIds },
     active: true,
     dayOfMonth: wib.getUTCDate(),
+    $or: [
+      { frequency: { $ne: "yearly" } },
+      { frequency: "yearly", month: wib.getUTCMonth() + 1 },
+    ],
   });
   const recurringByUser = new Map<string, typeof dueRecurringExpenses>();
   for (const item of dueRecurringExpenses) {
@@ -88,9 +98,25 @@ export async function GET(request: Request) {
     recurringByUser.set(uid, list);
   }
 
+  // 4. Cicilan yang jatuh tempo hari ini (dikelompokkan per user, pola
+  // sama persis pengeluaran berulang di atas)
+  const dueInstallments = await Installment.find({
+    userId: { $in: subscriberIds },
+    active: true,
+    dayOfMonth: wib.getUTCDate(),
+  });
+  const installmentsByUser = new Map<string, typeof dueInstallments>();
+  for (const item of dueInstallments) {
+    const uid = item.userId.toString();
+    const list = installmentsByUser.get(uid) ?? [];
+    list.push(item);
+    installmentsByUser.set(uid, list);
+  }
+
   let expenseReminderSent = 0;
   let budgetReminderSent = 0;
   let recurringReminderSent = 0;
+  let installmentReminderSent = 0;
   let removed = 0;
 
   for (const sub of subscriptions) {
@@ -121,14 +147,30 @@ export async function GET(request: Request) {
     // yang sudah ke-prefill), biar nominal masih bisa dikoreksi kalau
     // beda dari biasanya (mis. tagihan listrik naik).
     for (const item of recurringByUser.get(uid) ?? []) {
+      const frequencyLabel = item.frequency === "yearly" ? " (tahunan)" : "";
       const result = await sendPushToSubscription(sub, {
         title: "Pundi",
-        body: `${item.name} ${formatRupiah(
+        body: `${item.name}${frequencyLabel} ${formatRupiah(
           item.amount
         )} jatuh tempo hari ini — tap buat catat`,
         url: `/dashboard?confirmRecurring=${item._id}`,
       });
       if (result === "sent") recurringReminderSent++;
+      if (result === "removed") removed++;
+    }
+
+    // Sama semi-otomatis kayak pengeluaran berulang — user yang tap
+    // notifikasi ini yang benar-benar mencatatnya lewat dialog konfirmasi
+    // (bisa dikoreksi nominalnya kalau beda), bukan auto-create.
+    for (const item of installmentsByUser.get(uid) ?? []) {
+      const result = await sendPushToSubscription(sub, {
+        title: "Pundi",
+        body: `${item.name} ${formatRupiah(
+          item.monthlyInstallment
+        )} jatuh tempo hari ini — tap buat catat`,
+        url: `/dashboard?confirmInstallment=${item._id}`,
+      });
+      if (result === "sent") installmentReminderSent++;
       if (result === "removed") removed++;
     }
   }
@@ -139,9 +181,11 @@ export async function GET(request: Request) {
     isStartOfMonth,
     budgetPending: budgetPending.size,
     recurringDue: dueRecurringExpenses.length,
+    installmentDue: dueInstallments.length,
     expenseReminderSent,
     budgetReminderSent,
     recurringReminderSent,
+    installmentReminderSent,
     removed,
   });
 }
