@@ -41,34 +41,34 @@ export function SavingsGoalNudgeBanner() {
 
   return (
     <Card className="border-0 bg-linear-to-br from-violet-500 to-purple-600 text-white">
-      <CardContent className="flex flex-wrap items-center gap-4 py-4">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white/20">
-          <Target className="size-5" />
+      <CardContent className="relative flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-2 top-2 size-7 text-white/80 hover:bg-white/10 hover:text-white sm:static sm:order-last sm:shrink-0"
+          onClick={handleClose}
+        >
+          <X className="size-4" />
+        </Button>
+        <div className="flex items-start gap-3 pr-8 sm:min-w-0 sm:flex-1 sm:pr-0">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white/20">
+            <Target className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Belum punya target tabungan</p>
+            <p className="text-sm text-white/85">
+              Bikin target buat tujuan tertentu (liburan, dana darurat, dst)
+              dan pantau progressnya di satu tempat.
+            </p>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">Belum punya target tabungan</p>
-          <p className="text-sm text-white/85">
-            Bikin target buat tujuan tertentu (liburan, dana darurat, dst)
-            dan pantau progressnya di satu tempat.
-          </p>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button
-            asChild
-            size="sm"
-            className="bg-white text-violet-700 hover:bg-white/90"
-          >
-            <Link href="/target">Buat Target</Link>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 text-white/80 hover:bg-white/10 hover:text-white"
-            onClick={handleClose}
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
+        <Button
+          asChild
+          size="sm"
+          className="w-full bg-white text-violet-700 hover:bg-white/90 sm:w-auto sm:shrink-0"
+        >
+          <Link href="/target">Buat Target</Link>
+        </Button>
       </CardContent>
     </Card>
   );
