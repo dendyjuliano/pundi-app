@@ -28,6 +28,7 @@ import { GradientBlobs } from "@/components/gradient-blobs";
 import { RadialProgress } from "@/components/radial-progress";
 import { IconChip } from "@/components/icon-chip";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
+import { SavingsGoalNudgeBanner } from "@/components/savings-goal-nudge-banner";
 import {
   Receipt,
   Wallet,
@@ -957,6 +958,8 @@ function DashboardContent() {
           )}
         </div>
       </div>
+
+      <SavingsGoalNudgeBanner />
 
       {loading ? (
         <div className="space-y-6">

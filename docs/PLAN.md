@@ -2318,3 +2318,59 @@ lakukan saja" termasuk kalau perlu screenshot baru.
       `pnpm build` sukses walau `/public/target.jpeg` belum ada
       (Next Image asset publik, bukan static import — tidak bikin
       build gagal, cuma gambar patah di browser sampai file ditaruh)
+- [x] User sediakan `public/target.jpeg` — dikonfirmasi ke-serve benar
+      (curl 200), screenshot Target Tabungan sekarang tampil di
+      section Tampilan
+
+## Fase 61 — Nudge Fitur Baru di Akhir Onboarding
+
+Gap yang disadari: user baru yang selesai wizard onboarding (5 langkah:
+welcome→income→jatah makan→alokasi→selesai) sama sekali tidak tahu ada
+notifikasi pengingat/Target Tabungan/Pengeluaran Berulang — cuma bisa
+ketemu sendiri lewat Settings/Panduan. Padahal push notification
+reminder itu fitur retensi utama yang percuma kalau tidak pernah
+diaktifkan user baru.
+
+- [x] `app/onboarding/page.tsx` — step "done" (terakhir) ditambah
+      section baru di bawah 2 tombol CTA yang sudah ada
+      ("Isi Budget Sekarang"/"Nanti Saja"): heading kecil "Biar makin
+      gampang dipakai" + `&lt;PushNotificationToggle /&gt;` (reuse
+      LANGSUNG komponen yang sudah ada, dipakai juga di Settings —
+      tidak ada duplikasi logic sama sekali) + teks singkat nyebutin
+      Target Tabungan &amp; Pengeluaran Berulang bisa dicoba lewat
+      sidebar (bukan tombol navigasi baru, biar tidak bersaing sama
+      2 CTA utama yang sudah ada)
+- [x] Sengaja BUKAN step baru di `STEPS` array (tetap 5 langkah,
+      progress bar tidak berubah) — cuma nambah konten di step
+      terakhir yang sudah ada, sesuai arahan "nudge kecil" bukan
+      onboarding tambahan yang lebih panjang
+- [x] tsc, eslint bersih di seluruh project; smoke test curl (307
+      redirect ke login, expected — `/onboarding` protected route)
+
+## Fase 62 — Banner Ajakan Bikin Target Tabungan di Dashboard
+
+User minta banner di Dashboard yang ngajak bikin Target Tabungan,
+tapi CUMA muncul kalau user belum punya target sama sekali, dan
+maksimal 1x per hari (ditutup → muncul lagi besok). Ditanya dulu lewat
+AskUserQuestion soal penyimpanan status "sudah ditutup" — user pilih
+localStorage (bukan DB), trade-off disepakati: per-browser/device,
+bukan per-akun.
+
+- [x] `components/savings-goal-nudge-banner.tsx` (baru) — cek
+      `localStorage["pundi-savings-banner-dismissed"]` (nyimpen
+      tanggal LOKAL browser, format `YYYY-MM-DD`); kalau sama dengan
+      hari ini, skip (jangan fetch apa-apa). Kalau beda/belum ada,
+      `GET /api/savings-goals` — tampilkan banner cuma kalau array-nya
+      kosong. Tombol close nyimpen tanggal hari ini ke localStorage
+      lalu sembunyiin bannernya
+- [x] `app/(app)/dashboard/page.tsx` — render `&lt;SavingsGoalNudgeBanner
+      /&gt;` sekali di luar percabangan mode Bulanan/Tahunan (jadi
+      konsisten muncul di kedua mode), setelah header judul, sebelum
+      konten yang bergantung ke `loading`/`monthlySummary` — banner ini
+      fetch datanya sendiri, tidak nunggu data dashboard lain selesai
+      loading
+- [x] tsc, eslint bersih di seluruh project; smoke test curl. Logic
+      inti (goals kosong → true/false) sudah diverifikasi lewat test
+      `/api/savings-goals` di Fase 58 sebelumnya; bagian localStorage-nya
+      murni client-side, perlu dicek manual di browser (ganti tanggal
+      sistem atau tunggu besok buat lihat banner muncul lagi)

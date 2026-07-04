@@ -27,6 +27,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { IconChip } from "@/components/icon-chip";
 import { CurrencyInput } from "@/components/currency-input";
 import { GradientBlobs } from "@/components/gradient-blobs";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import { formatRupiah } from "@/lib/format";
 
 type IncomeCategory = { _id: string; name: string };
@@ -576,6 +577,25 @@ export default function OnboardingPage() {
                   <Button size="lg" variant="ghost" onClick={goToDashboard}>
                     Nanti Saja, ke Dashboard
                   </Button>
+                </div>
+
+                <div className="pt-2 border-t space-y-3 text-left">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Biar makin gampang dipakai
+                  </p>
+                  <PushNotificationToggle />
+                  <p className="text-xs text-muted-foreground">
+                    Nanti kamu juga bisa coba{" "}
+                    <span className="font-medium text-foreground">
+                      Target Tabungan
+                    </span>{" "}
+                    (nabung buat tujuan tertentu) dan{" "}
+                    <span className="font-medium text-foreground">
+                      Pengeluaran Berulang
+                    </span>{" "}
+                    (pengingat subscription/tagihan bulanan) lewat menu di
+                    sidebar.
+                  </p>
                 </div>
               </div>
             )}
