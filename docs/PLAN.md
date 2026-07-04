@@ -2580,3 +2580,69 @@ edit/hapus goal Bersama dibatasi ke pembuat goal + admin keluarga saja
 - [x] tsc, eslint bersih di semua file yang disentuh; `pnpm build`
       sukses; data uji (3 akun, 2 family, goal &amp; expense terkait)
       dibersihkan
+
+### Follow-up: Bug Toggle "Bagikan ke Keluarga" &amp; Bisa Diubah Kapan Saja
+
+User bikin goal "Liburan" dengan toggle Bersama, tapi tidak muncul di
+akun `member@pundi.test`. Investigasi: `familyId` benar, tapi
+`shared: false` di database — toggle-nya tidak kesimpen sebagai `true`.
+
+- [x] Root cause: toggle "Bagikan ke keluarga" dirender DI BAWAH tombol
+      submit "Tambah" di form Target Baru — gampang ke-skip/submit
+      duluan sebelum sempat di-toggle. Fixed: toggle dipindah ke ATAS
+      tombol submit
+- [x] Gap kedua ketahuan sekalian: goal yang sudah dibuat TIDAK BISA
+      diubah status Pribadi/Bersama-nya lagi — cuma nama &amp; nominal
+      yang bisa di-edit. `PATCH /api/savings-goals/[id]` diperluas
+      terima field `shared` opsional; mode edit `GoalCard` dapat
+      toggle Bersama juga (baris kedua di bawah nama/nominal, cuma
+      muncul kalau family &gt; 1 anggota atau goal-nya memang sudah
+      Bersama)
+- [x] Fix data langsung: goal "Liburan" milik user di-update manual
+      jadi `shared: true` lewat script sekali-jalan (di scratchpad,
+      bukan masuk repo) — dikonfirmasi `member@pundi.test` langsung
+      bisa lihat setelahnya, tanpa user perlu hapus &amp; bikin ulang
+- [x] tsc, eslint bersih; `pnpm build` sukses
+
+## Fase 66 — Notifikasi Push Saat Ada Kontribusi ke Goal Bersama
+
+Follow-up natural dari fitur Target Tabungan Kolaboratif (Fase 65) —
+kontribusi ke goal Bersama sebelumnya senyap, anggota lain baru tahu
+kalau buka halaman Target sendiri. User setuju nambah push notification
+selama tetap pakai stack gratis yang sudah ada (`web-push` + VAPID,
+BUKAN layanan berbayar pihak ketiga seperti OneSignal/Firebase) — sudah
+dipakai buat reminder harian (`app/api/cron/daily-reminder/route.ts`).
+
+- [x] `lib/push.ts` (baru) — ekstrak logika VAPID config &amp; kirim-ke-
+      satu-subscription (`configureWebPush`, `sendPushToSubscription`)
+      dari `daily-reminder/route.ts` yang sebelumnya cuma fungsi lokal
+      di situ, supaya bisa dipakai ulang. Tambah `sendPushToUsers`
+      (kirim payload sama ke semua subscription milik sekumpulan user
+      sekaligus, best-effort — return diam-diam kalau VAPID belum
+      diset, bukan throw, biar fitur yang numpang kirim push tidak ikut
+      gagal)
+- [x] `app/api/cron/daily-reminder/route.ts` — direfactor pakai
+      `lib/push.ts`, tidak ada perubahan perilaku (payload &amp; kondisi
+      pengiriman tetap sama persis, cuma helper-nya dipindah biar tidak
+      duplikat)
+- [x] `app/api/savings-goals/[id]/contributions/route.ts` — setelah
+      kontribusi &amp; `Expense` tersimpan, kalau `goal.shared`: hitung
+      ulang total kontribusi (agregat SEMUA kontributor) &amp;
+      persentase progress, kirim push ke SEMUA anggota keluarga LAIN
+      (bukan diri sendiri) isinya "{nama kontributor} baru menambah
+      {nominal} ke &quot;{nama goal}&quot; — total kini {persen}%",
+      link ke `/target`. Dibungkus try/catch — kegagalan kirim push
+      (VAPID belum diset, subscription invalid, dll) SENGAJA tidak
+      menggagalkan response kontribusi yang sudah tersimpan sukses
+- [x] Verifikasi lewat 2 akun uji (admin + member 1 family) dengan
+      push subscription PALSU (endpoint &amp; key format valid tapi
+      tidak terhubung ke device asli — keterbatasan curl, tidak bisa
+      test penerimaan notifikasi beneran di browser): member kontribusi
+      ke goal Bersama admin → response tetap 201 sukses &amp; cepat
+      (~0.3 detik, tidak nge-hang nunggu push gagal) → dicek langsung
+      ke database, KEDUA subscription (admin &amp; member) masih ada
+      utuh sesudahnya (tidak salah kehapus sebagai "invalid" walau
+      push-nya gagal terkirim ke endpoint palsu) — konfirmasi jalur
+      kode aman end-to-end walau penerimaan aktual belum bisa
+      dites tanpa browser sungguhan
+- [x] tsc, eslint bersih; `pnpm build` sukses; data uji dibersihkan

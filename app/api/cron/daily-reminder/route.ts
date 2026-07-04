@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import webpush from "web-push";
 import { connectToDatabase } from "@/lib/mongodb";
 import Expense from "@/models/Expense";
 import PushSubscription from "@/models/PushSubscription";
@@ -7,7 +6,7 @@ import RecurringExpense from "@/models/RecurringExpense";
 import { getMonthlyBudgetOrDraft } from "@/lib/monthlyBudget";
 import { toMonthString } from "@/lib/dashboardSummary";
 import { formatRupiah } from "@/lib/format";
-import { SITE_URL } from "@/lib/site";
+import { configureWebPush, sendPushToSubscription } from "@/lib/push";
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
@@ -32,51 +31,18 @@ function wibStartOfDayUtc(now: Date) {
   return new Date(wibMidnightAsIfUtc.getTime() - WIB_OFFSET_MS);
 }
 
-async function sendPush(
-  sub: {
-    _id: unknown;
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-  },
-  payload: { title: string; body: string; url: string }
-): Promise<"sent" | "removed" | "failed"> {
-  try {
-    await webpush.sendNotification(
-      { endpoint: sub.endpoint, keys: sub.keys },
-      JSON.stringify(payload)
-    );
-    return "sent";
-  } catch (err) {
-    // Subscription sudah tidak valid lagi (mis. user uninstall/clear
-    // data browser) — bersihkan biar cron berikutnya tidak nyoba lagi
-    const statusCode = (err as { statusCode?: number }).statusCode;
-    if (statusCode === 404 || statusCode === 410) {
-      await PushSubscription.deleteOne({ _id: sub._id });
-      return "removed";
-    }
-    return "failed";
-  }
-}
-
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!vapidPublicKey || !vapidPrivateKey) {
+  if (!configureWebPush()) {
     return NextResponse.json(
       { error: "VAPID keys not configured" },
       { status: 500 }
     );
   }
-  webpush.setVapidDetails(
-    `mailto:hello@${new URL(SITE_URL).hostname}`,
-    vapidPublicKey,
-    vapidPrivateKey
-  );
 
   await connectToDatabase();
 
@@ -131,7 +97,7 @@ export async function GET(request: Request) {
     const uid = sub.userId.toString();
 
     if (!alreadyLoggedToday.has(uid)) {
-      const result = await sendPush(sub, {
+      const result = await sendPushToSubscription(sub, {
         title: "Pundi",
         body: "Belum ada pengeluaran tercatat hari ini — jangan lupa dicatat ya!",
         url: "/dashboard",
@@ -141,7 +107,7 @@ export async function GET(request: Request) {
     }
 
     if (budgetPending.has(uid)) {
-      const result = await sendPush(sub, {
+      const result = await sendPushToSubscription(sub, {
         title: "Pundi",
         body: `Budget bulan ${currentMonth} belum diisi — yuk atur dulu biar Dashboard mulai ngitung`,
         url: "/budget",
@@ -155,7 +121,7 @@ export async function GET(request: Request) {
     // yang sudah ke-prefill), biar nominal masih bisa dikoreksi kalau
     // beda dari biasanya (mis. tagihan listrik naik).
     for (const item of recurringByUser.get(uid) ?? []) {
-      const result = await sendPush(sub, {
+      const result = await sendPushToSubscription(sub, {
         title: "Pundi",
         body: `${item.name} ${formatRupiah(
           item.amount

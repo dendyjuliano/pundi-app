@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { canAccessSavingsGoal, getCurrentUser } from "@/lib/session";
+import { formatRupiah } from "@/lib/format";
+import { sendPushToUsers } from "@/lib/push";
 import SavingsGoal from "@/models/SavingsGoal";
 import SavingsContribution from "@/models/SavingsContribution";
 import Expense from "@/models/Expense";
@@ -95,5 +97,43 @@ export async function POST(
     note,
     expenseId: expense._id,
   });
+
+  // Goal Bersama — kabari anggota keluarga LAIN (bukan diri sendiri) lewat
+  // push notification, biar progress kontribusi kelihatan real-time tanpa
+  // mereka harus buka halaman Target duluan. Best-effort: kegagalan kirim
+  // push (mis. VAPID belum diset, subscription sudah tidak valid) TIDAK
+  // boleh menggagalkan response kontribusi utama yang sudah sukses tersimpan.
+  if (goal.shared) {
+    try {
+      const familyMembers = await UserModel.find({ familyId: user.familyId });
+      const contributorName =
+        familyMembers.find((u) => u._id.toString() === user.id)?.name ??
+        "Anggota";
+      const otherMemberIds = familyMembers
+        .filter((u) => u._id.toString() !== user.id)
+        .map((u) => u._id.toString());
+
+      const totals = await SavingsContribution.aggregate([
+        { $match: { goalId: goal._id } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]);
+      const totalContributed = totals[0]?.total ?? 0;
+      const progressPct =
+        goal.targetAmount > 0
+          ? Math.min(100, Math.round((totalContributed / goal.targetAmount) * 100))
+          : 0;
+
+      await sendPushToUsers(otherMemberIds, {
+        title: "Pundi",
+        body: `${contributorName} baru menambah ${formatRupiah(
+          amount
+        )} ke "${goal.name}" — total kini ${progressPct}%`,
+        url: "/target",
+      });
+    } catch {
+      // best-effort, tidak menggagalkan response kontribusi utama
+    }
+  }
+
   return NextResponse.json(contribution, { status: 201 });
 }
