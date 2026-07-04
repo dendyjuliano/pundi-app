@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import { getCurrentUser } from "@/lib/session";
+import { canAccessSavingsGoal, getCurrentUser } from "@/lib/session";
 import SavingsGoal from "@/models/SavingsGoal";
 import SavingsContribution from "@/models/SavingsContribution";
 import Expense from "@/models/Expense";
+import UserModel from "@/models/User";
 
 export async function GET(
   _request: Request,
@@ -14,11 +15,34 @@ export async function GET(
 
   const { id } = await ctx.params;
   await connectToDatabase();
+  const goal = await SavingsGoal.findById(id);
+  if (!goal || !canAccessSavingsGoal(goal, user)) {
+    return NextResponse.json({ error: "Goal not found" }, { status: 404 });
+  }
+
+  // Goal Bersama dikontribusi banyak anggota — kembalikan kontribusi dari
+  // SEMUA kontributor (bukan cuma diri sendiri), di-enrich nama kontributor
+  // buat ditampilkan di riwayat.
   const contributions = await SavingsContribution.find({
     goalId: id,
-    userId: user.id,
   }).sort({ date: -1, createdAt: -1 });
-  return NextResponse.json(contributions);
+
+  const contributorIds = [...new Set(contributions.map((c) => c.userId.toString()))];
+  const contributors = await UserModel.find({ _id: { $in: contributorIds } });
+  const nameById = new Map(
+    contributors.map((u) => [u._id.toString(), u.name])
+  );
+
+  const result = contributions.map((c) => ({
+    _id: c._id,
+    amount: c.amount,
+    date: c.date,
+    note: c.note,
+    userId: c.userId,
+    contributorName: nameById.get(c.userId.toString()) ?? "Anggota",
+  }));
+
+  return NextResponse.json(result);
 }
 
 export async function POST(
@@ -31,8 +55,8 @@ export async function POST(
   const { id } = await ctx.params;
 
   await connectToDatabase();
-  const goal = await SavingsGoal.findOne({ _id: id, userId: user.id });
-  if (!goal) {
+  const goal = await SavingsGoal.findById(id);
+  if (!goal || !canAccessSavingsGoal(goal, user)) {
     return NextResponse.json({ error: "Goal not found" }, { status: 404 });
   }
 

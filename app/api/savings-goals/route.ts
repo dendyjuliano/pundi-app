@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { Types } from "mongoose";
 import { connectToDatabase } from "@/lib/mongodb";
-import { getCurrentUser } from "@/lib/session";
+import { canEditSavingsGoal, getCurrentUser } from "@/lib/session";
 import SavingsGoal from "@/models/SavingsGoal";
 import SavingsContribution from "@/models/SavingsContribution";
 
@@ -10,15 +9,23 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   await connectToDatabase();
-  const goals = await SavingsGoal.find({ userId: user.id }).sort({
-    createdAt: 1,
-  });
+  // Goal Pribadi milik sendiri + goal Bersama siapa saja di family yang
+  // sama — lihat canAccessSavingsGoal/canEditSavingsGoal di lib/session.ts
+  // buat aturan lengkapnya.
+  const goals = await SavingsGoal.find({
+    $or: [
+      { userId: user.id },
+      { familyId: user.familyId, shared: true },
+    ],
+  }).sort({ createdAt: 1 });
 
-  // Progress dihitung on-the-fly dari total kontribusi tiap goal, bukan
-  // field ter-cache — pola yang sama dengan getMonthBreakdown yang
-  // menjumlah Expense langsung tiap request.
+  // Progress dihitung on-the-fly dari total kontribusi tiap goal (dari
+  // SEMUA kontributor, bukan cuma diri sendiri, buat goal Bersama), pola
+  // yang sama dengan getMonthBreakdown yang menjumlah Expense langsung
+  // tiap request.
+  const goalIds = goals.map((g) => g._id);
   const totals = await SavingsContribution.aggregate([
-    { $match: { userId: new Types.ObjectId(user.id) } },
+    { $match: { goalId: { $in: goalIds } } },
     { $group: { _id: "$goalId", total: { $sum: "$amount" } } },
   ]);
   const totalsByGoalId = new Map(
@@ -30,6 +37,9 @@ export async function GET() {
     name: g.name,
     targetAmount: g.targetAmount,
     targetDate: g.targetDate,
+    shared: g.shared,
+    isOwner: g.userId.toString() === user.id,
+    canManage: canEditSavingsGoal(g, user),
     contributed: totalsByGoalId.get(g._id.toString()) ?? 0,
   }));
 
@@ -44,6 +54,7 @@ export async function POST(request: Request) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const targetAmount = Number(body.targetAmount);
   const targetDate = body.targetDate ? new Date(body.targetDate) : undefined;
+  const shared = body.shared === true;
 
   if (!name) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
@@ -61,6 +72,8 @@ export async function POST(request: Request) {
   await connectToDatabase();
   const goal = await SavingsGoal.create({
     userId: user.id,
+    familyId: user.familyId,
+    shared,
     name,
     targetAmount,
     targetDate,

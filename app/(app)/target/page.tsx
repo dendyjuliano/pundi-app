@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { id as idLocale } from "date-fns/locale";
 import {
@@ -12,6 +13,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Users,
 } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import {
@@ -26,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { IconChip } from "@/components/icon-chip";
 import { CurrencyInput } from "@/components/currency-input";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
@@ -50,6 +53,9 @@ type SavingsGoal = {
   name: string;
   targetAmount: number;
   targetDate?: string;
+  shared: boolean;
+  isOwner: boolean;
+  canManage: boolean;
   contributed: number;
 };
 
@@ -58,6 +64,8 @@ type Contribution = {
   amount: number;
   date: string;
   note?: string;
+  userId: string;
+  contributorName: string;
 };
 
 function toISODate(date: Date) {
@@ -204,14 +212,19 @@ function AddContributionDialog({
 
 function GoalCard({
   goal,
+  currentUserId,
+  hasFamilyMembers,
   onChanged,
 }: {
   goal: SavingsGoal;
+  currentUserId: string | undefined;
+  hasFamilyMembers: boolean;
   onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(goal.name);
   const [editTargetAmount, setEditTargetAmount] = useState(goal.targetAmount);
+  const [editShared, setEditShared] = useState(goal.shared);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [contributions, setContributions] = useState<Contribution[] | null>(
@@ -228,6 +241,7 @@ function GoalCard({
   function startEdit() {
     setEditName(goal.name);
     setEditTargetAmount(goal.targetAmount);
+    setEditShared(goal.shared);
     setEditing(true);
   }
 
@@ -239,6 +253,7 @@ function GoalCard({
       body: JSON.stringify({
         name: editName.trim(),
         targetAmount: editTargetAmount,
+        shared: editShared,
       }),
     });
     if (!res.ok) {
@@ -291,45 +306,64 @@ function GoalCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         {editing ? (
-          <div className="flex flex-1 items-center gap-2">
-            <Input
-              autoFocus
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveEdit();
-                if (e.key === "Escape") setEditing(false);
-              }}
-              className="h-9"
-            />
-            <CurrencyInput
-              value={editTargetAmount}
-              onValueChange={setEditTargetAmount}
-              className="h-9 w-36"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-emerald-600 hover:text-emerald-700 shrink-0"
-              onClick={saveEdit}
-            >
-              <Check className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground shrink-0"
-              onClick={() => setEditing(false)}
-            >
-              <X className="size-4" />
-            </Button>
+          <div className="flex flex-1 flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveEdit();
+                  if (e.key === "Escape") setEditing(false);
+                }}
+                className="h-9"
+              />
+              <CurrencyInput
+                value={editTargetAmount}
+                onValueChange={setEditTargetAmount}
+                className="h-9 w-36"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-emerald-600 hover:text-emerald-700 shrink-0"
+                onClick={saveEdit}
+              >
+                <Check className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground shrink-0"
+                onClick={() => setEditing(false)}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            {(hasFamilyMembers || goal.shared) && (
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={editShared} onCheckedChange={setEditShared} />
+                <span>Bagikan ke keluarga</span>
+              </label>
+            )}
           </div>
         ) : (
           <>
             <div className="flex items-center gap-3 min-w-0">
               <IconChip icon={TargetIcon} color="violet" size="sm" />
               <div className="min-w-0">
-                <CardTitle className="truncate">{goal.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="truncate">{goal.name}</CardTitle>
+                  {goal.shared && (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 border-blue-200 text-blue-700"
+                    >
+                      <Users className="size-3" />
+                      Bersama
+                    </Badge>
+                  )}
+                </div>
                 {goal.targetDate && (
                   <CardDescription>
                     Target {formatShortDate(goal.targetDate)}
@@ -343,19 +377,23 @@ function GoalCard({
                   Tercapai
                 </Badge>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground hover:text-foreground"
-                onClick={startEdit}
-              >
-                <Pencil className="size-4" />
-              </Button>
-              <ConfirmDeleteButton
-                title={`Hapus target "${goal.name}"?`}
-                description="Progress target ini akan dihapus, tapi pengeluaran yang sudah tercatat dari kontribusi sebelumnya tetap ada di riwayat Pengeluaran."
-                onConfirm={handleDeleteGoal}
-              />
+              {goal.canManage && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground hover:text-foreground"
+                    onClick={startEdit}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <ConfirmDeleteButton
+                    title={`Hapus target "${goal.name}"?`}
+                    description="Progress target ini akan dihapus, tapi pengeluaran yang sudah tercatat dari kontribusi sebelumnya tetap ada di riwayat Pengeluaran."
+                    onConfirm={handleDeleteGoal}
+                  />
+                </>
+              )}
             </div>
           </>
         )}
@@ -414,15 +452,18 @@ function GoalCard({
                     <span className="font-medium">{formatRupiah(c.amount)}</span>{" "}
                     <span className="text-muted-foreground">
                       {formatShortDate(c.date)}
+                      {goal.shared ? ` · ${c.contributorName}` : ""}
                       {c.note ? ` · ${c.note}` : ""}
                     </span>
                   </div>
-                  <ConfirmDeleteButton
-                    title="Hapus kontribusi ini?"
-                    description="Nominal ini akan dikurangi dari total terkumpul, dan pengeluaran terkait di riwayat Pengeluaran juga ikut terhapus."
-                    onConfirm={() => handleDeleteContribution(c._id)}
-                    className="size-6 text-muted-foreground hover:text-destructive"
-                  />
+                  {c.userId === currentUserId && (
+                    <ConfirmDeleteButton
+                      title="Hapus kontribusi ini?"
+                      description="Nominal ini akan dikurangi dari total terkumpul, dan pengeluaran terkait di riwayat Pengeluaran juga ikut terhapus."
+                      onConfirm={() => handleDeleteContribution(c._id)}
+                      className="size-6 text-muted-foreground hover:text-destructive"
+                    />
+                  )}
                 </div>
               ))
             )}
@@ -434,13 +475,18 @@ function GoalCard({
 }
 
 export default function TargetPage() {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
+
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasFamilyMembers, setHasFamilyMembers] = useState(false);
 
   const [name, setName] = useState("");
   const [targetAmount, setTargetAmount] = useState(0);
   const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
   const [dateOpen, setDateOpen] = useState(false);
+  const [shared, setShared] = useState(false);
 
   async function loadGoals() {
     const res = await fetch("/api/savings-goals");
@@ -449,7 +495,14 @@ export default function TargetPage() {
 
   useEffect(() => {
     (async () => {
-      await loadGoals();
+      const [, membersRes] = await Promise.all([
+        loadGoals(),
+        fetch("/api/family-members"),
+      ]);
+      if (membersRes.ok) {
+        const members = await membersRes.json();
+        setHasFamilyMembers(members.length > 1);
+      }
       setLoading(false);
     })();
   }, []);
@@ -464,6 +517,7 @@ export default function TargetPage() {
         name: name.trim(),
         targetAmount,
         targetDate: targetDate ? toISODate(targetDate) : undefined,
+        shared,
       }),
     });
     if (!res.ok) {
@@ -474,6 +528,7 @@ export default function TargetPage() {
     setName("");
     setTargetAmount(0);
     setTargetDate(undefined);
+    setShared(false);
     loadGoals();
   }
 
@@ -508,7 +563,13 @@ export default function TargetPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {goals.map((g) => (
-            <GoalCard key={g._id} goal={g} onChanged={loadGoals} />
+            <GoalCard
+              key={g._id}
+              goal={g}
+              currentUserId={currentUserId}
+              hasFamilyMembers={hasFamilyMembers}
+              onChanged={loadGoals}
+            />
           ))}
         </div>
       )}
@@ -519,53 +580,68 @@ export default function TargetPage() {
           <CardTitle>Target Baru</CardTitle>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={handleAddGoal}
-            className="flex flex-col sm:flex-row sm:items-center gap-2"
-          >
-            <Input
-              placeholder="Nama target (mis. Liburan Desember)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <CurrencyInput
-              value={targetAmount}
-              onValueChange={setTargetAmount}
-              className="sm:w-40"
-              placeholder="Target nominal"
-            />
-            <Popover open={dateOpen} onOpenChange={setDateOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="sm:w-56 justify-start overflow-hidden font-normal"
-                >
-                  <CalendarIcon className="size-4 shrink-0" />
-                  <span className="truncate">
-                    {targetDate
-                      ? targetDate.toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "Tanggal target (opsional)"}
+          <form onSubmit={handleAddGoal} className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <Input
+                placeholder="Nama target (mis. Liburan Desember)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <CurrencyInput
+                value={targetAmount}
+                onValueChange={setTargetAmount}
+                className="sm:w-40"
+                placeholder="Target nominal"
+              />
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="sm:w-56 justify-start overflow-hidden font-normal"
+                  >
+                    <CalendarIcon className="size-4 shrink-0" />
+                    <span className="truncate">
+                      {targetDate
+                        ? targetDate.toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "Tanggal target (opsional)"}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    locale={idLocale}
+                    selected={targetDate}
+                    onSelect={(d) => {
+                      setTargetDate(d);
+                      setDateOpen(false);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {hasFamilyMembers && (
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={shared} onCheckedChange={setShared} />
+                <span>
+                  Bagikan ke keluarga
+                  <span className="text-muted-foreground">
+                    {" "}
+                    — semua anggota bisa lihat &amp; ikut nabung
                   </span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  locale={idLocale}
-                  selected={targetDate}
-                  onSelect={(d) => {
-                    setTargetDate(d);
-                    setDateOpen(false);
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-            <Button type="submit">Tambah</Button>
+                </span>
+              </label>
+            )}
+
+            <Button type="submit" className="w-full sm:w-auto">
+              Tambah
+            </Button>
           </form>
         </CardContent>
       </Card>

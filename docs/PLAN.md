@@ -2509,3 +2509,74 @@ sengaja netral/formal (bukan jadi materi marketing gradasi warna-warni).
       kebaca jelas, tidak ada regresi dari 2 bug Fase 63 (glyph "≥"
       &amp; hyphenation verdict) — semua tetap benar
 - [x] tsc, eslint bersih; `pnpm build` sukses; data uji dibersihkan
+
+## Fase 65 — Target Tabungan Kolaboratif (Shared Savings Goals)
+
+User tertarik ide "collaborative savings goals" waktu diskusi arah
+pengembangan berikutnya — target tabungan yang bisa dikontribusi lebih
+dari satu anggota keluarga (mis. "Liburan Keluarga"), bukan cuma milik
+satu akun kayak sebelumnya. Dikonfirmasi lewat AskUserQuestion: toggle
+per-goal (Pribadi vs Bersama, bukan semua goal otomatis jadi bersama —
+goal lama tetap Pribadi, tidak ada perubahan perilaku), dan izin
+edit/hapus goal Bersama dibatasi ke pembuat goal + admin keluarga saja
+(anggota lain cuma bisa lihat &amp; nambah kontribusi).
+
+- [x] `models/SavingsGoal.ts` — tambah `familyId` (family pemilik goal)
+      &amp; `shared` (boolean, default `false` — goal lama otomatis
+      tetap Pribadi tanpa migrasi karena ternyata belum ada data
+      `SavingsGoal` sama sekali di database sebelum fitur ini, dicek
+      lewat script sekali-jalan sebelum nulis kode)
+- [x] `lib/session.ts` — 2 helper baru `canAccessSavingsGoal` (pemilik
+      ATAU goal Bersama + family sama) &amp; `canEditSavingsGoal`
+      (pemilik ATAU (Bersama + admin + family sama)), dipakai konsisten
+      di semua route `savings-goals`
+- [x] Semua route `app/api/savings-goals/**` diperluas: `GET` list
+      pakai `$or` (goal sendiri + goal Bersama family), total
+      kontribusi per goal dihitung dari SEMUA kontributor (bukan cuma
+      diri sendiri); `PATCH`/`DELETE` goal pakai `canEditSavingsGoal`
+      (403 kalau accessible tapi tidak boleh edit, 404 kalau sama
+      sekali tidak accessible); `DELETE` cascade kontribusi dari SEMUA
+      kontributor; `GET/POST` kontribusi pakai `canAccessSavingsGoal`,
+      GET kontribusi di-enrich nama kontributor (`UserModel.find` sekali
+      buat semua distinct `userId`, hindari N+1)
+- [x] **SENGAJA TIDAK diubah**: `DELETE` kontribusi individual tetap
+      cuma boleh oleh kontributor aslinya (bukan admin/pembuat goal) —
+      hapus kontribusi ikut menghapus `Expense` terkait, dan `Expense`
+      adalah data budget pribadi satu akun yang tidak boleh disentuh
+      user lain lewat jalur ini, meski goal-nya Bersama
+- [x] `app/api/family-members/route.ts` (baru) — endpoint ringan
+      terbuka buat SEMUA anggota keluarga login (beda dari
+      `/api/admin/members` yang admin-only), cuma expose `{id, name}`,
+      dipakai buat nampilin nama kontributor &amp; syarat nampilkan
+      toggle "Bagikan ke keluarga" (cuma kalau family &gt; 1 anggota)
+- [x] `components/ui/switch.tsx` (baru) — ditambah via
+      `npx shadcn@latest add switch`, konsisten sama preset
+      `radix-nova` yang dipakai semua komponen `ui/` lain
+- [x] `app/(app)/target/page.tsx` — form goal baru dapat toggle
+      "Bagikan ke keluarga" (`Switch`, cuma render kalau family &gt; 1
+      anggota); `GoalCard` dapat badge "Bersama" (biru, sejajar badge
+      "Tercapai"), tombol edit/hapus goal cuma render kalau
+      `goal.canManage` dari response API, riwayat kontribusi tampilkan
+      nama kontributor buat goal Bersama, tombol hapus kontribusi cuma
+      muncul buat baris milik user sendiri
+- [x] **Bug ke-reproduce dari sesi lalu &amp; langsung dikenali**:
+      field `familyId`/`shared` awalnya hilang total dari response API
+      walau kode &amp; schema sudah benar — Mongoose model cache dev
+      server masih pakai schema versi lama (gotcha yang sama berulang
+      kali kejadian sesi ini). Fixed dengan restart `pnpm dev`
+      (`kill` proses lama, `pnpm dev` baru) sebelum lanjut testing
+- [x] Verifikasi lewat 3 akun uji (admin + member 1 family, admin
+      keluarga lain): member lihat goal Bersama admin di list-nya tanpa
+      jadi pembuat, TIDAK lihat goal Pribadi admin sama sekali; member
+      nambah kontribusi ke goal Bersama → `Expense` masuk ke budget
+      MEMBER (bukan admin), progress goal ke-update gabungan; member
+      PATCH/DELETE goal Bersama (bukan pembuat/admin) → 403; admin
+      PATCH/DELETE goal Bersama buatan member → berhasil; admin coba
+      hapus kontribusi milik member → 404 (cuma kontributor aslinya
+      boleh); goal dibuat member di-cek admin bisa kelola juga (pola
+      "pembuat + admin" berlaku dua arah); akun keluarga lain sama
+      sekali tidak bisa akses goal manapun dari family ini (404 di
+      semua endpoint, termasuk yang Bersama)
+- [x] tsc, eslint bersih di semua file yang disentuh; `pnpm build`
+      sukses; data uji (3 akun, 2 family, goal &amp; expense terkait)
+      dibersihkan

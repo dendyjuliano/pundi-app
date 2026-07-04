@@ -40,3 +40,38 @@ export async function resolveAdminTargetUserId(
 
   return { ok: true, targetUserId: requestedUserId };
 }
+
+type SavingsGoalAccessCheck = {
+  userId: { toString(): string };
+  familyId: { toString(): string };
+  shared: boolean;
+};
+
+// Goal Pribadi (shared: false) cuma kelihatan buat pembuatnya sendiri —
+// perilaku sama seperti sebelum fitur kolaboratif ada. Goal Bersama
+// kelihatan buat siapa saja di family yang sama, apapun role-nya.
+export function canAccessSavingsGoal(
+  goal: SavingsGoalAccessCheck,
+  user: { id: string; familyId: string }
+) {
+  return (
+    goal.userId.toString() === user.id ||
+    (goal.shared && goal.familyId.toString() === user.familyId)
+  );
+}
+
+// Cuma pembuat goal atau admin keluarga yang boleh ubah nama/nominal
+// atau menghapus goal Bersama — anggota lain cuma bisa lihat & nambah
+// kontribusi (ditegakkan lewat canAccessSavingsGoal di route GET/POST
+// kontribusi).
+export function canEditSavingsGoal(
+  goal: SavingsGoalAccessCheck,
+  user: { id: string; role: "admin" | "member"; familyId: string }
+) {
+  return (
+    goal.userId.toString() === user.id ||
+    (goal.shared &&
+      user.role === "admin" &&
+      goal.familyId.toString() === user.familyId)
+  );
+}

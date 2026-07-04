@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import { getCurrentUser } from "@/lib/session";
+import {
+  canAccessSavingsGoal,
+  canEditSavingsGoal,
+  getCurrentUser,
+} from "@/lib/session";
 import SavingsGoal from "@/models/SavingsGoal";
 import SavingsContribution from "@/models/SavingsContribution";
 
@@ -13,8 +17,8 @@ export async function GET(
 
   const { id } = await ctx.params;
   await connectToDatabase();
-  const goal = await SavingsGoal.findOne({ _id: id, userId: user.id });
-  if (!goal) {
+  const goal = await SavingsGoal.findById(id);
+  if (!goal || !canAccessSavingsGoal(goal, user)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   return NextResponse.json(goal);
@@ -30,10 +34,17 @@ export async function PATCH(
   const { id } = await ctx.params;
   const body = await request.json();
 
-  const update: { name?: string; targetAmount?: number; targetDate?: Date | null } =
-    {};
+  const update: {
+    name?: string;
+    targetAmount?: number;
+    targetDate?: Date | null;
+    shared?: boolean;
+  } = {};
   if (typeof body.name === "string" && body.name.trim()) {
     update.name = body.name.trim();
+  }
+  if (typeof body.shared === "boolean") {
+    update.shared = body.shared;
   }
   if (body.targetAmount !== undefined) {
     const targetAmount = Number(body.targetAmount);
@@ -61,15 +72,17 @@ export async function PATCH(
   }
 
   await connectToDatabase();
-  const goal = await SavingsGoal.findOneAndUpdate(
-    { _id: id, userId: user.id },
-    update,
-    { new: true }
-  );
-  if (!goal) {
+  const existing = await SavingsGoal.findById(id);
+  if (!existing || !canAccessSavingsGoal(existing, user)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json(goal);
+  if (!canEditSavingsGoal(existing, user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  Object.assign(existing, update);
+  await existing.save();
+  return NextResponse.json(existing);
 }
 
 export async function DELETE(
@@ -81,14 +94,21 @@ export async function DELETE(
 
   const { id } = await ctx.params;
   await connectToDatabase();
-  const goal = await SavingsGoal.findOneAndDelete({ _id: id, userId: user.id });
-  if (!goal) {
+  const existing = await SavingsGoal.findById(id);
+  if (!existing || !canAccessSavingsGoal(existing, user)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  if (!canEditSavingsGoal(existing, user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  await existing.deleteOne();
   // Cascade — beda dari kategori (AllocationCategory/IncomeCategory) yang
   // sengaja no-cascade karena MonthlyBudget adalah snapshot historis;
   // SavingsContribution murni running-log yang tidak masuk akal disimpan
-  // begitu goal induknya sudah tidak ada.
+  // begitu goal induknya sudah tidak ada. Dihapus dari SEMUA kontributor
+  // (bukan cuma userId yang minta hapus) — goal Bersama bisa punya
+  // kontribusi dari banyak anggota keluarga.
   //
   // TAPI: Expense yang otomatis ke-link dari tiap kontribusi SENGAJA
   // TIDAK ikut dihapus di sini — itu representasi uang yang beneran
@@ -97,7 +117,7 @@ export async function DELETE(
   // MonthlyBudget bulan-bulan lalu. Hapus goal cuma berarti "berhenti
   // nge-track progress ke tujuan ini", bukan "kontribusi yang sudah
   // terjadi dianggap tidak pernah ada".
-  await SavingsContribution.deleteMany({ goalId: id, userId: user.id });
+  await SavingsContribution.deleteMany({ goalId: id });
 
   return NextResponse.json({ success: true });
 }
