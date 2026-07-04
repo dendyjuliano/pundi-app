@@ -384,6 +384,8 @@ export async function getYearlyDashboardSummary(userId: string, year: number) {
     months: monthResults.map((r) => ({
       month: r.month,
       label: r.label,
+      totalIncome: r.totalIncome,
+      totalAllocation: r.totalAllocation,
       makanActual: r.makanActual,
       lainLainActual: r.lainLainActual,
       makanBudget: r.makanBudget,

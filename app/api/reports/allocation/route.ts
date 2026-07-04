@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, resolveAdminTargetUserId } from "@/lib/session";
 import AllocationCategory from "@/models/AllocationCategory";
 import { getMonthlyBudgetOrDraft, isValidMonth } from "@/lib/monthlyBudget";
 
@@ -17,10 +17,22 @@ export async function GET(request: Request) {
     );
   }
 
+  const resolution = await resolveAdminTargetUserId(
+    user,
+    searchParams.get("userId")
+  );
+  if (!resolution.ok) {
+    return NextResponse.json(
+      { error: resolution.error },
+      { status: resolution.status }
+    );
+  }
+  const targetUserId = resolution.targetUserId;
+
   await connectToDatabase();
-  const budget = await getMonthlyBudgetOrDraft(user.id, month);
+  const budget = await getMonthlyBudgetOrDraft(targetUserId, month);
   const allocationCategories = await AllocationCategory.find({
-    userId: user.id,
+    userId: targetUserId,
   });
   const nameMap = new Map(
     allocationCategories.map((c) => [c._id.toString(), c.name])

@@ -2374,3 +2374,138 @@ bukan per-akun.
       `/api/savings-goals` di Fase 58 sebelumnya; bagian localStorage-nya
       murni client-side, perlu dicek manual di browser (ganti tanggal
       sistem atau tunggu besok buat lihat banner muncul lagi)
+
+## Fase 63 — Export Laporan Keuangan Tahunan (PDF)
+
+Direncanakan lewat plan mode. Dikonfirmasi lewat AskUserQuestion: format
+PDF, per tahun, ada verdict kesehatan keuangan otomatis
+(Sehat/Perlu Perhatian/Waspada). Khusus admin bisa export laporan milik
+member dalam family-nya juga.
+
+- [x] `pnpm add @react-pdf/renderer` — dependency PDF pertama di
+      codebase ini (belum pernah ada export/PDF apa pun sebelumnya)
+- [x] `lib/financialReport.ts` — `getAnnualFinancialReport(userId,
+      year)` reuse `getYearlyDashboardSummary` + `getYearlyInvestmentData`
+      yang SUDAH ADA (tidak re-derive angka dari nol), hitung
+      `savingsRate` (realisasi investasi ÷ income), `adherenceRate`
+      (bulan tidak melenceng ÷ 12), verdict lewat rule-of-thumb (≥20%
+      &amp; ≥75% → Sehat; ≥10% atau ≥50% → Perlu Perhatian; selain itu
+      Waspada)
+- [x] `lib/dashboardSummary.ts` — `getYearlyDashboardSummary`'s
+      `months[]` diperluas nambah `totalIncome`/`totalAllocation` per
+      bulan (sebelumnya cuma ada di agregat tahunan, bukan per-bulan) —
+      perubahan ADDITIVE, tidak ada consumer lama yang somehow bisa
+      "break" cuma karena ada field baru
+- [x] `lib/pdf/AnnualFinancialReportPdf.tsx` — dokumen PDF pakai
+      `@react-pdf/renderer` (`Document`/`Page`/`View`/`Text`/
+      `StyleSheet`), styling netral/formal (hitam-abu-abu, bukan
+      gradient warna-warni ala landing page) biar berasa dokumen resmi:
+      Ringkasan Eksekutif (4 kotak stat + badge verdict berwarna),
+      Laporan Ringkasan gaya Laba Rugi, tabel Rincian Bulanan 12 baris,
+      Analisis Investasi (kondisional), Indikator Kesehatan Keuangan +
+      disclaimer eksplisit "bukan nasihat finansial profesional",
+      footer nomor halaman
+- [x] `app/api/reports/export/route.ts` — pola auth PERSIS sama
+      `dashboard-summary` routes (`getCurrentUser` 401 →
+      `resolveAdminTargetUserId` buat family-scoped admin access →
+      403/404). File tetap `.ts` (bukan `.tsx`, dukungan Next.js buat
+      `route.tsx` tidak terdokumentasi jelas di versi ini) — pakai
+      `createElement()` biar tidak butuh sintaks JSX; tipe parameter
+      `renderToBuffer` diambil generik lewat `Parameters&lt;typeof
+      renderToBuffer&gt;[0]` (bukan `any`) karena `DocumentProps`
+      react-pdf tidak diekspor dari paketnya
+- [x] `app/(app)/reports/page.tsx` — card baru "Export Laporan
+      Keuangan" dekat header halaman, tombol "Export PDF (tahun)"
+      pakai `&lt;a download&gt;` native (bukan fetch+blob manual, server
+      sudah kirim `Content-Disposition:attachment`). Khusus admin:
+      `Select` tambahan "Export untuk: Saya/[Nama Member]" (reuse
+      `/api/admin/members` yang sudah ada, sama persis dipakai
+      Dashboard) — SENGAJA cuma ngubah tombol export, tidak mengubah
+      chart yang tampil di layar (di luar scope)
+- [x] **2 bug ketemu &amp; diperbaiki dari inspeksi visual PDF hasil
+      generate** (bukan cuma tsc/eslint, tapi benar-benar dibaca isi
+      PDF-nya): (1) karakter "≥" di teks disclaimer render jadi huruf
+      "e" yang salah — font Helvetica bawaan react-pdf tidak dukung
+      glyph itu, diganti frasa "minimal X%" (aman lintas font, sekalian
+      lebih mudah dibaca); (2) badge verdict "Perlu Perhatian"
+      ke-hyphenate jadi "Perhat-ian" di tengah kata karena box-nya
+      sempit — dimatikan lewat
+      `Font.registerHyphenationCallback((word) => [word])` (matiin
+      hyphenation, biarkan wrap utuh per kata) + font size verdict
+      diperkecil dikit (15→13) biar lebih lega
+- [x] Verifikasi lewat 2 akun uji (admin + member dalam family sama):
+      export punya sendiri (200, PDF valid 2 halaman, header
+      Content-Type/Content-Disposition benar) → admin export laporan
+      member (200) → member coba export laporan admin lewat `?userId=`
+      (403 Forbidden, ditolak benar) → admin coba `userId` acak/luar
+      family (404, family boundary tetap ditegakkan) → no session sama
+      sekali (401) → year param kosong (400). Semua skenario proteksi
+      sesuai ekspektasi; data uji dibersihkan
+- [x] tsc, eslint bersih di seluruh project
+
+### Follow-up: Selector Admin Sekarang Nge-drive Seluruh Chart, Bukan Cuma Export
+
+User tanya apakah lebih baik selector "Export untuk" juga ngubah chart
+yang tampil di layar (bukan cuma pengaruh ke PDF) — saya setuju, alasan:
+konsisten sama pola Dashboard (pilih member → semua data ikut berubah)
+dan menghindari kebingungan selector-yang-cuma-pengaruh-ke-export tapi
+chart di layar tetap punya sendiri.
+
+- [x] `app/api/reports/yearly/route.ts`, `.../allocation/route.ts`,
+      `.../investment/route.ts` — ketiganya diperluas pakai
+      `resolveAdminTargetUserId` (pola PERSIS `dashboard-summary`),
+      sebelumnya ketiganya hardcode `user.id` doang, sama sekali belum
+      pernah support admin ngelihat data member lain
+- [x] `app/(app)/reports/page.tsx` — `exportUserId` (state terpisah,
+      cuma buat export) diganti jadi `selectedUserId`/`effectiveUserId`
+      yang dipakai bareng buat SEMUA fetch chart (`yearly`,
+      `allocation`, `investment`) DAN link export. Selector-nya
+      dipindah dari dalam card Export ke header halaman (sejajar judul
+      "Reports"), persis pola penempatan di Dashboard — judul halaman
+      juga nunjukkin "Reports — [Nama Member]" pas admin lagi viewing
+      punya member lain
+- [x] Verifikasi lewat 2 akun uji (admin + member): seed income
+      DISTINCTIVE (Rp77.777.000) di akun member → admin lihat laporan
+      sendiri (semua 0, benar beda) → admin pakai `?userId=` ke member
+      → `totalTarget`/`lainLainBudget` nunjukkin 77.777.000 (benar,
+      data member yang kebaca, bukan data admin) → dicek juga di
+      endpoint allocation &amp; investment (sama-sama benar) → member
+      coba lihat data admin lewat `?userId=` → tetap 403 Forbidden
+      (family-scoped access control tidak berubah/tidak bocor)
+- [x] tsc, eslint bersih di seluruh project; data uji dibersihkan
+
+## Fase 64 — Poles Desain Visual PDF Export
+
+User minta desain export PDF dipoles dengan aksen warna dan/atau logo
+brand (bukan minta rombak layout/isi laporan, murni polish visual),
+sambil TETAP mempertahankan tone "laporan keuangan resmi" yang sudah
+sengaja netral/formal (bukan jadi materi marketing gradasi warna-warni).
+
+- [x] `lib/pdf/AnnualFinancialReportPdf.tsx` — tambah logo piggy-bank
+      brand di header (chip bulat emerald berisi `Svg`/`Path` dari
+      `@react-pdf/renderer`, reuse persis path SVG yang sama dipakai
+      `lib/pwa-icon.tsx`/favicon/PWA icons di seluruh app, biar
+      konsisten — bukan gambar terpisah)
+- [x] Aksen warna emerald ditambah secukupnya, sengaja dibatasi biar
+      tidak mendominasi: garis vertikal kecil (accent bar) di depan
+      tiap judul section, border atas tipis warna emerald di 3 stat box
+      polos ("Ringkasan Eksekutif" &amp; "Indikator Kesehatan
+      Keuangan" — menyamai treatment box verdict yang sudah berwarna),
+      tint hijau muda di background header tabel (`#ecfdf5`) dengan
+      teks header jadi emerald gelap (`#065f46`) — kontras tetap jelas
+      buat print/hitam-putih
+- [x] **Bug ke-reintroduce &amp; ketauan sebelum ke-ship**: waktu edit
+      pertama nambah komentar penjelasan palet warna, `Font.
+      registerHyphenationCallback((word) => [word])` (fix hyphenation
+      dari Fase 63) ke-hapus tanpa sengaja karena ada di tengah blok
+      teks yang di-replace — ketauan dari warning eslint
+      `'Font' is defined but never used`, langsung dikembalikan sebelum
+      lanjut. Pengingat kalau eslint/tsc bisa nangkep regresi yang
+      tidak kelihatan dari sekadar baca diff
+- [x] Verifikasi via inspeksi visual PDF hasil generate (bukan cuma
+      tsc/eslint — akun uji baru, seed 3 bulan data, hit
+      `/api/reports/export?year=2026`, baca hasilnya langsung lewat
+      Read tool): logo render bersih, accent bar &amp; tint tabel
+      kebaca jelas, tidak ada regresi dari 2 bug Fase 63 (glyph "≥"
+      &amp; hyphenation verdict) — semua tetap benar
+- [x] tsc, eslint bersih; `pnpm build` sukses; data uji dibersihkan

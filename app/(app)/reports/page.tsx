@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   ComposedChart,
   Bar,
@@ -17,6 +18,7 @@ import { linearTrend } from "@/lib/trendline";
 import { CATEGORICAL, CHROME } from "@/lib/chartColors";
 import { formatRupiah, formatCompactRupiah as formatCompact } from "@/lib/format";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -25,9 +27,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { IconChip } from "@/components/icon-chip";
-import { TrendingUp, PieChart, UtensilsCrossed, Landmark } from "lucide-react";
+import {
+  TrendingUp,
+  PieChart,
+  UtensilsCrossed,
+  Landmark,
+  Download,
+} from "lucide-react";
+
+type MemberOption = { id: string; name: string; role: "admin" | "member" };
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 4 + i);
@@ -75,6 +91,10 @@ function currentMonth() {
 }
 
 export default function ReportsPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
+  const currentUserId = session?.user?.id ?? "";
+
   const [year, setYear] = useState(new Date().getFullYear());
   const [allocationMonth, setAllocationMonth] = useState(currentMonth());
   const [yearlyData, setYearlyData] = useState<MonthReport[]>([]);
@@ -82,22 +102,44 @@ export default function ReportsPage() {
   const [investment, setInvestment] = useState<InvestmentReport | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Satu selector ini dipakai buat DUA hal sekaligus: chart yang tampil
+  // di layar DAN target export PDF — supaya konsisten sama pola yang
+  // sudah ada di Dashboard (pilih member, semua data ikut berubah),
+  // dan menghindari kebingungan "selector cuma pengaruh ke export tapi
+  // chart di layar masih punya sendiri".
+  const [members, setMembers] = useState<MemberOption[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const effectiveUserId = selectedUserId || currentUserId;
+
   useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      const res = await fetch("/api/admin/members");
+      if (res.ok) setMembers(await res.json());
+    })();
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!effectiveUserId) return;
     (async () => {
       setLoading(true);
       const [yearly, alloc, invest] = await Promise.all([
-        fetch(`/api/reports/yearly?year=${year}`).then((r) => r.json()),
-        fetch(`/api/reports/allocation?month=${allocationMonth}`).then((r) =>
-          r.json()
-        ),
-        fetch(`/api/reports/investment?year=${year}`).then((r) => r.json()),
+        fetch(
+          `/api/reports/yearly?year=${year}&userId=${effectiveUserId}`
+        ).then((r) => r.json()),
+        fetch(
+          `/api/reports/allocation?month=${allocationMonth}&userId=${effectiveUserId}`
+        ).then((r) => r.json()),
+        fetch(
+          `/api/reports/investment?year=${year}&userId=${effectiveUserId}`
+        ).then((r) => r.json()),
       ]);
       setYearlyData(yearly);
       setAllocation(alloc);
       setInvestment(invest);
       setLoading(false);
     })();
-  }, [year, allocationMonth]);
+  }, [year, allocationMonth, effectiveUserId]);
 
   if (loading) {
     return (
@@ -145,14 +187,70 @@ export default function ReportsPage() {
     allocationRow[s.name] = s.amount;
   });
 
+  const viewingOther = isAdmin && !!selectedUserId && selectedUserId !== currentUserId;
+  const selectedMember = members.find((m) => m.id === effectiveUserId);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
-        <p className="text-sm text-muted-foreground">
-          Laporan tahunan pengeluaran & alokasi penghasilan
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Reports
+            {viewingOther && (
+              <span className="text-muted-foreground font-normal">
+                {" "}
+                — {selectedMember?.name ?? ""}
+              </span>
+            )}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Laporan tahunan pengeluaran & alokasi penghasilan
+          </p>
+        </div>
+        {isAdmin && members.length > 0 && (
+          <Select value={effectiveUserId} onValueChange={setSelectedUserId}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Pilih anggota" />
+            </SelectTrigger>
+            <SelectContent>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.id === currentUserId ? "Saya" : m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
+
+      {/* Export Laporan Keuangan */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+          <IconChip icon={Download} color="emerald" size="sm" />
+          <div>
+            <CardTitle className="text-base">
+              Export Laporan Keuangan
+            </CardTitle>
+            <CardDescription>
+              Unduh laporan keuangan tahunan {year}
+              {viewingOther ? ` milik ${selectedMember?.name ?? ""}` : ""}{" "}
+              bergaya laporan perusahaan (PDF), lengkap dengan indikator
+              kesehatan keuangan
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <a
+              href={`/api/reports/export?year=${year}&userId=${effectiveUserId}`}
+              download
+            >
+              <Download className="size-4" />
+              Export PDF ({year})
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Chart 1: Pengeluaran Bulanan */}
       <Card>

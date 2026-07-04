@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, resolveAdminTargetUserId } from "@/lib/session";
 import { getYearlyInvestmentData } from "@/lib/reports";
 
 export async function GET(request: Request) {
@@ -13,6 +13,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid year" }, { status: 400 });
   }
 
-  const data = await getYearlyInvestmentData(user.id, year);
+  const resolution = await resolveAdminTargetUserId(
+    user,
+    searchParams.get("userId")
+  );
+  if (!resolution.ok) {
+    return NextResponse.json(
+      { error: resolution.error },
+      { status: resolution.status }
+    );
+  }
+
+  const data = await getYearlyInvestmentData(resolution.targetUserId, year);
   return NextResponse.json(data);
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, resolveAdminTargetUserId } from "@/lib/session";
 import { getMonthlyReportData } from "@/lib/reports";
 
 export async function GET(request: Request) {
@@ -13,13 +13,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid year" }, { status: 400 });
   }
 
+  const resolution = await resolveAdminTargetUserId(
+    user,
+    searchParams.get("userId")
+  );
+  if (!resolution.ok) {
+    return NextResponse.json(
+      { error: resolution.error },
+      { status: resolution.status }
+    );
+  }
+  const targetUserId = resolution.targetUserId;
+
   const months = Array.from(
     { length: 12 },
     (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`
   );
 
   const data = await Promise.all(
-    months.map((month) => getMonthlyReportData(user.id, month))
+    months.map((month) => getMonthlyReportData(targetUserId, month))
   );
 
   return NextResponse.json(data);
