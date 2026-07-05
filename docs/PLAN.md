@@ -2802,3 +2802,58 @@ compatible tanpa migrasi data.
       400 sesuai validasi
 - [x] tsc, eslint bersih; restart `pnpm dev` preventif (schema
       berubah); `pnpm build` sukses; data uji dibersihkan
+
+### Follow-up: Perbaiki UI Mobile Pengeluaran Berulang
+
+User laporan (dengan screenshot) tombol edit/hapus di item Pengeluaran
+Berulang ke-overlap/hilang di mobile setelah badge frequency baru
+ditambahkan Fase 68 — root cause: `<li>` list item cuma satu baris
+flex non-wrap, badge yang banyak (nominal, tanggal, "Tahunan",
+"Nonaktif") mendorong tombol aksi keluar layar.
+
+- [x] `app/(app)/settings/page.tsx` — didesain ulang total, bukan
+      cuma di-fix overlap-nya: tiap item dapat `IconChip` (ikon Repeat,
+      konsisten sama Target/Cicilan), badge dirapel jadi satu baris teks
+      deskriptif ("Rp350.000 · tiap Maret, tgl 3") bukan tumpukan badge
+      terpisah, mode edit &amp; form tambah dirombak jadi grid
+      responsif (`grid-cols-2 sm:grid-cols-4`) menggantikan flex-wrap
+      yang berantakan
+- [x] tsc, eslint bersih; `pnpm build` sukses
+
+## Fase 69 — Dashboard: "Sisa Bulan Ini" Menggantikan "Total Bersih"
+
+User observasi (dengan screenshot hero card Dashboard): angka "Total
+Bersih" (Income - Alokasi) kurang berguna buat user cek harian karena
+itu angka RENCANA yang ditentukan di awal bulan, tidak pernah berkurang
+seiring pengeluaran beneran tercatat — user harus mental math sendiri
+buat tahu "duit saya beneran masih sisa berapa". Diusulkan &amp;
+disetujui: ganti jadi "Sisa {label}" dihitung dari
+`totalTarget - totalActual` (target gabungan makan+lain-lain dikurangi
+yang beneran sudah dibelanjakan) — angka yang BENERAN mengecil seiring
+waktu, bukan angka statis.
+
+- [x] `app/(app)/dashboard/page.tsx` — `HeroCard` props diganti dari
+      `totalBersih` jadi `totalActual`/`totalTarget`, hitung
+      `sisa = totalTarget - totalActual` di dalam komponen; kalau
+      negatif (`over`), angka ditampilkan absolut dengan warna merah
+      (`text-red-200`) + caption "Melebihi budget bulan ini" — Income
+      &amp; Alokasi tetap tampil sebagai sub-baris seperti sebelumnya
+      (tidak ada informasi yang hilang, cuma headline number-nya diganti)
+- [x] **Bug lama ketauan &amp; ikut diperbaiki sekalian**: ring radial
+      "X% terpakai" sebelumnya pakai kondisi `spentPct > 100` buat
+      nentuin warna merah — tapi `spentPct` selalu di-clamp maksimal
+      100 lewat `progressValue()` sebelum sampai ke situ, jadi kondisi
+      itu MATI TOTAL (tidak pernah true, ring tidak pernah merah walau
+      beneran overspend). Diganti pakai `over` (dari `sisa < 0`,
+      dihitung dari angka mentah sebelum di-clamp) — sekarang ring
+      beneran berubah merah pas overspend, konsisten sama angka sisa
+      di sebelahnya
+- [x] Kedua pemanggil `HeroCard` (MonthlyDashboard &amp; YearlyDashboard)
+      diupdate pass `totalActual`/`totalTarget` yang sesuai
+      (`summary.monthSummary.*` buat bulanan, `summary.*` buat tahunan)
+- [x] Verifikasi lewat akun uji: set income 10jt, alokasi makan 1.5jt
+      (`totalTarget` = 10jt) → cek `sisa = 10.000.000` saat belum ada
+      pengeluaran → tambah pengeluaran 11jt → `totalActual: 11000000`,
+      `totalTarget: 10000000` → `sisa = -1.000.000` (negatif, sesuai
+      skenario overspend, bakal tampil merah + caption peringatan)
+- [x] tsc, eslint bersih; `pnpm build` sukses; data uji dibersihkan

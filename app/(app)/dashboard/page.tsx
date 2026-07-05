@@ -263,29 +263,48 @@ function PeriodCard({
 
 function HeroCard({
   label,
-  totalBersih,
+  totalActual,
+  totalTarget,
   totalIncome,
   totalAllocation,
   spentPct,
   onExpenseSaved,
 }: {
   label: string;
-  totalBersih: number;
+  totalActual: number;
+  totalTarget: number;
   totalIncome: number;
   totalAllocation: number;
   spentPct: number;
   onExpenseSaved: () => void;
 }) {
+  // Berapa yang BENERAN masih bisa dibelanjakan sisa periode ini — beda
+  // dari "Total Bersih" (Income - Alokasi) yang cuma angka rencana di
+  // awal bulan dan tidak berkurang seiring pengeluaran beneran tercatat.
+  // Ini yang jadi angka headline karena itu yang paling langsung
+  // menjawab "duit saya masih sisa berapa".
+  const sisa = totalTarget - totalActual;
+  const over = sisa < 0;
+
   return (
     <Card className="relative overflow-hidden border-0 bg-linear-to-br from-emerald-500 via-emerald-600 to-teal-700 text-white">
       <GradientBlobs className="opacity-40" />
       <CardContent className="relative flex flex-col sm:flex-row sm:items-center gap-6">
         <div className="flex-1 space-y-6">
           <div>
-            <p className="text-sm text-emerald-50/90">Total Bersih {label}</p>
-            <p className="mt-1 text-4xl font-bold tracking-tight">
-              {formatRupiah(totalBersih)}
+            <p className="text-sm text-emerald-50/90">Sisa {label}</p>
+            <p
+              className={`mt-1 text-4xl font-bold tracking-tight ${
+                over ? "text-red-200" : ""
+              }`}
+            >
+              {formatRupiah(Math.abs(sisa))}
             </p>
+            {over && (
+              <p className="mt-1 text-xs font-medium text-red-200">
+                Melebihi budget bulan ini
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-6 border-t border-white/15 pt-4">
@@ -346,7 +365,7 @@ function HeroCard({
             size={104}
             strokeWidth={9}
             trackClassName="text-white/20"
-            progressClassName={spentPct > 100 ? "text-red-300" : "text-white"}
+            progressClassName={over ? "text-red-300" : "text-white"}
           >
             <div className="text-center">
               <p className="text-xl font-bold leading-none">{spentPct}%</p>
@@ -423,7 +442,8 @@ function MonthlyDashboard({
 
       <HeroCard
         label={formatMonthLabel(summary.month)}
-        totalBersih={summary.totalBersih}
+        totalActual={summary.monthSummary.totalActual}
+        totalTarget={summary.monthSummary.totalTarget}
         totalIncome={summary.totalIncome}
         totalAllocation={summary.totalAllocation}
         spentPct={spentPct}
@@ -671,7 +691,8 @@ function YearlyDashboard({
 
       <HeroCard
         label={String(summary.year)}
-        totalBersih={summary.totalBersih}
+        totalActual={summary.totalActual}
+        totalTarget={summary.totalTarget}
         totalIncome={summary.totalIncome}
         totalAllocation={summary.totalAllocation}
         spentPct={spentPct}
