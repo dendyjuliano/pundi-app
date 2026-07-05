@@ -1,18 +1,31 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, resolveAdminTargetUserId } from "@/lib/session";
 import { calculateMonthlyInstallment, type InterestType } from "@/lib/installment";
 import Installment from "@/models/Installment";
 import InstallmentPayment from "@/models/InstallmentPayment";
 
 const VALID_INTEREST_TYPES: InterestType[] = ["flat", "efektif"];
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { searchParams } = new URL(request.url);
+  const resolution = await resolveAdminTargetUserId(
+    user,
+    searchParams.get("userId")
+  );
+  if (!resolution.ok) {
+    return NextResponse.json(
+      { error: resolution.error },
+      { status: resolution.status }
+    );
+  }
+  const targetUserId = resolution.targetUserId;
+
   await connectToDatabase();
-  const installments = await Installment.find({ userId: user.id }).sort({
+  const installments = await Installment.find({ userId: targetUserId }).sort({
     createdAt: 1,
   });
 

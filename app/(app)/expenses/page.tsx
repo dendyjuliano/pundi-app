@@ -11,12 +11,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { IconChip } from "@/components/icon-chip";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   Trash2,
   UtensilsCrossed,
   ShoppingBag,
   CalendarDays,
   Sparkles,
+  Search,
 } from "lucide-react";
 
 type Expense = {
@@ -61,6 +69,10 @@ export default function ExpensesPage() {
   const [month, setMonth] = useState(currentMonth());
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<
+    "all" | "makan" | "lain-lain"
+  >("all");
 
   async function loadExpenses(forMonth: string) {
     const res = await fetch(`/api/expenses?month=${forMonth}`);
@@ -94,12 +106,33 @@ export default function ExpensesPage() {
     loadExpenses(month);
   }
 
-  const grouped = expenses.reduce<Record<string, Expense[]>>((acc, exp) => {
-    const key = exp.date.slice(0, 10);
-    acc[key] = acc[key] ?? [];
-    acc[key].push(exp);
-    return acc;
-  }, {});
+  // Filter cuma memengaruhi daftar yang DITAMPILKAN — stat "Hari Ini"/
+  // "Total Bulan" di bawah tetap dihitung dari `expenses` mentah (bukan
+  // hasil filter), biar user tidak salah kira itu total transaksi yang
+  // ke-filter doang.
+  const filteredExpenses = expenses.filter((exp) => {
+    if (categoryFilter !== "all" && exp.category !== categoryFilter) {
+      return false;
+    }
+    if (
+      searchQuery.trim() &&
+      !(exp.note ?? "").toLowerCase().includes(searchQuery.trim().toLowerCase())
+    ) {
+      return false;
+    }
+    return true;
+  });
+  const isFiltering = categoryFilter !== "all" || searchQuery.trim() !== "";
+
+  const grouped = filteredExpenses.reduce<Record<string, Expense[]>>(
+    (acc, exp) => {
+      const key = exp.date.slice(0, 10);
+      acc[key] = acc[key] ?? [];
+      acc[key].push(exp);
+      return acc;
+    },
+    {}
+  );
   const dateKeys = Object.keys(grouped).sort((a, b) => (a < b ? 1 : -1));
 
   const isCurrentMonth = month === currentMonth();
@@ -179,6 +212,33 @@ export default function ExpensesPage() {
         </Card>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Cari catatan pengeluaran..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select
+          value={categoryFilter}
+          onValueChange={(v) =>
+            setCategoryFilter(v as "all" | "makan" | "lain-lain")
+          }
+        >
+          <SelectTrigger className="sm:w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Kategori</SelectItem>
+            <SelectItem value="makan">Makan</SelectItem>
+            <SelectItem value="lain-lain">Lain-lain</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {loading && (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full" />
@@ -189,7 +249,9 @@ export default function ExpensesPage() {
       {!loading && dateKeys.length === 0 && (
         <Card>
           <CardContent className="text-sm text-muted-foreground text-center py-10">
-            Belum ada pengeluaran tercatat di {formatMonthLabel(month)}.
+            {isFiltering
+              ? "Tidak ada pengeluaran yang cocok dengan pencarian/filter."
+              : `Belum ada pengeluaran tercatat di ${formatMonthLabel(month)}.`}
           </CardContent>
         </Card>
       )}

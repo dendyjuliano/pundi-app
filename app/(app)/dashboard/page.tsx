@@ -46,6 +46,7 @@ import {
   History,
   Users,
   Landmark,
+  CreditCard,
 } from "lucide-react";
 
 type PeriodData = {
@@ -269,6 +270,8 @@ function HeroCard({
   totalAllocation,
   spentPct,
   onExpenseSaved,
+  totalUtang,
+  activeInstallmentCount,
 }: {
   label: string;
   totalActual: number;
@@ -277,6 +280,8 @@ function HeroCard({
   totalAllocation: number;
   spentPct: number;
   onExpenseSaved: () => void;
+  totalUtang: number;
+  activeInstallmentCount: number;
 }) {
   // Berapa yang BENERAN masih bisa dibelanjakan sisa periode ini — beda
   // dari "Total Bersih" (Income - Alokasi) yang cuma angka rencana di
@@ -330,6 +335,21 @@ function HeroCard({
                 </p>
               </div>
             </div>
+            {activeInstallmentCount > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex size-8 items-center justify-center rounded-full bg-white/15">
+                  <CreditCard className="size-4" />
+                </div>
+                <div>
+                  <p className="text-xs text-emerald-50/80">
+                    Utang Aktif ({activeInstallmentCount})
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {formatRupiah(totalUtang)}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -420,11 +440,15 @@ function MonthlyDashboard({
   userName,
   viewingOther,
   onExpenseSaved,
+  totalUtang,
+  activeInstallmentCount,
 }: {
   summary: MonthlySummary;
   userName: string;
   viewingOther: boolean;
   onExpenseSaved: () => void;
+  totalUtang: number;
+  activeInstallmentCount: number;
 }) {
   const spentPct = Math.round(
     progressValue(summary.monthSummary.totalActual, summary.monthSummary.totalTarget)
@@ -448,6 +472,8 @@ function MonthlyDashboard({
         totalAllocation={summary.totalAllocation}
         spentPct={spentPct}
         onExpenseSaved={onExpenseSaved}
+        totalUtang={totalUtang}
+        activeInstallmentCount={activeInstallmentCount}
       />
 
       {!summary.isBudgetSaved && (
@@ -675,9 +701,13 @@ function MonthlyDashboard({
 function YearlyDashboard({
   summary,
   onExpenseSaved,
+  totalUtang,
+  activeInstallmentCount,
 }: {
   summary: YearlySummary;
   onExpenseSaved: () => void;
+  totalUtang: number;
+  activeInstallmentCount: number;
 }) {
   const spentPct = Math.round(
     progressValue(summary.totalActual, summary.totalTarget)
@@ -697,6 +727,8 @@ function YearlyDashboard({
         totalAllocation={summary.totalAllocation}
         spentPct={spentPct}
         onExpenseSaved={onExpenseSaved}
+        totalUtang={totalUtang}
+        activeInstallmentCount={activeInstallmentCount}
       />
 
       <Card>
@@ -829,6 +861,8 @@ function DashboardContent() {
     null
   );
   const [loading, setLoading] = useState(true);
+  const [totalUtang, setTotalUtang] = useState(0);
+  const [activeInstallmentCount, setActiveInstallmentCount] = useState(0);
 
   // Dipicu dari link notifikasi push "pengeluaran berulang jatuh tempo"
   // (?confirmRecurring=<id>) — ambil detail item itu lalu buka
@@ -892,6 +926,23 @@ function DashboardContent() {
   }, [isAdmin]);
 
   const effectiveUserId = selectedUserId || currentUserId;
+
+  // Total utang aktif — snapshot saat ini (bukan spesifik bulan/tahun yang
+  // lagi dipilih), jadi di-fetch terpisah dari `refresh` di bawah dan tidak
+  // perlu di-refetch tiap ganti bulan/tahun, cuma tiap ganti anggota yang
+  // dilihat (admin).
+  useEffect(() => {
+    if (!effectiveUserId) return;
+    (async () => {
+      const res = await fetch(`/api/installments?userId=${effectiveUserId}`);
+      if (!res.ok) return;
+      const items: { remainingAmount: number; lunas: boolean }[] =
+        await res.json();
+      const active = items.filter((i) => !i.lunas);
+      setTotalUtang(active.reduce((sum, i) => sum + i.remainingAmount, 0));
+      setActiveInstallmentCount(active.length);
+    })();
+  }, [effectiveUserId]);
 
   const refresh = useCallback(async () => {
     if (!effectiveUserId) return;
@@ -1037,9 +1088,16 @@ function DashboardContent() {
           userName={displayName}
           viewingOther={viewingOther}
           onExpenseSaved={refresh}
+          totalUtang={totalUtang}
+          activeInstallmentCount={activeInstallmentCount}
         />
       ) : mode === "yearly" && yearlySummary ? (
-        <YearlyDashboard summary={yearlySummary} onExpenseSaved={refresh} />
+        <YearlyDashboard
+          summary={yearlySummary}
+          onExpenseSaved={refresh}
+          totalUtang={totalUtang}
+          activeInstallmentCount={activeInstallmentCount}
+        />
       ) : null}
     </div>
   );

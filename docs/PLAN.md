@@ -2857,3 +2857,48 @@ waktu, bukan angka statis.
       `totalTarget: 10000000` → `sisa = -1.000.000` (negatif, sesuai
       skenario overspend, bakal tampil merah + caption peringatan)
 - [x] tsc, eslint bersih; `pnpm build` sukses; data uji dibersihkan
+
+## Fase 70 — Pencarian/Filter Pengeluaran &amp; Ringkasan Utang di Dashboard
+
+Dua ide pengembangan yang disetujui user sekaligus: (1) halaman
+Pengeluaran belum bisa dicari/difilter, menyulitkan kalau daftar sudah
+panjang; (2) progress Cicilan cuma kelihatan per-item di halaman
+Cicilan, tidak ada angka gabungan "total utang aktif" yang menyatu
+sama gambaran keuangan di Dashboard (pas timing-nya karena Fase 69
+baru saja bikin Dashboard fokus ke "sisa uang riil").
+
+- [x] `app/(app)/expenses/page.tsx` — tambah search box (cari
+      substring di `note`, case-insensitive) &amp; dropdown filter
+      kategori (Semua/Makan/Lain-lain), murni CLIENT-SIDE (data
+      sebulan sudah di-fetch semua, tidak perlu endpoint baru). Stat
+      card "Hari Ini"/"Total Bulan" SENGAJA tetap dihitung dari data
+      mentah (bukan hasil filter) biar tidak menyesatkan user kalau
+      lagi nge-filter. Empty-state pesan beda kalau kosong karena
+      filter vs beneran belum ada data
+- [x] `app/api/installments/route.ts` (GET) — diperluas terima
+      `?userId=` lewat `resolveAdminTargetUserId` (pola persis
+      `dashboard-summary`/`reports`), sebelumnya cuma bisa lihat punya
+      sendiri. POST/PATCH/DELETE Cicilan TETAP personal-only (tidak
+      diubah) — cuma GET (buat nampilin ringkasan) yang perlu dibuka
+      buat admin
+- [x] `app/(app)/dashboard/page.tsx` — fetch `/api/installments?userId=`
+      terpisah dari `refresh()` (snapshot utang aktif tidak spesifik
+      bulan/tahun yang lagi dipilih, cuma re-fetch kalau ganti anggota
+      yang dilihat admin), hitung `totalUtang`/`activeInstallmentCount`
+      dari item yang `!lunas`, di-pass ke `HeroCard` sebagai sub-stat
+      ke-3 (icon `CreditCard`) sejajar Income/Alokasi — SENGAJA cuma
+      muncul kalau `activeInstallmentCount > 0`, biar user tanpa
+      cicilan tidak lihat widget kosong/nol
+- [x] Verifikasi lewat 3 akun uji (admin+member 1 family, outsider
+      family lain): member bikin 3 cicilan (2 aktif + 1 langsung
+      dilunasi), admin lihat lewat `?userId=` → benar nampilin 3 item
+      dengan `lunas` yang tepat, `totalUtang` cuma menjumlah 2 yang
+      aktif (~Rp37,5jt, `Cicilan HP Lunas` dikecualikan) → outsider
+      coba akses → 404 (family boundary tetap ditegakkan) → member
+      akses tanpa `userId` (punya sendiri) tetap jalan normal. Search/
+      filter Pengeluaran dicek lewat data nyata (1 expense "Beli kopi"
+      lain-lain, 1 expense makan tanpa catatan) — logika filter
+      dikonfirmasi benar dari kombinasi data tsb (kategori cocok,
+      keyword cocok, gabungan keduanya kosong sesuai ekspektasi)
+- [x] tsc, eslint bersih; `pnpm build` sukses; data uji (semua akun)
+      dibersihkan
