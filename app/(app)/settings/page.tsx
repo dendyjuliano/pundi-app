@@ -752,7 +752,7 @@ export default function SettingsPage() {
                 editingRecurringId === item._id ? (
                   <li
                     key={item._id}
-                    className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border bg-muted/30"
+                    className="rounded-xl border bg-muted/30 px-4 py-3 space-y-2"
                   >
                     <Input
                       autoFocus
@@ -767,17 +767,17 @@ export default function SettingsPage() {
                       }}
                       className="h-9 bg-background"
                     />
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <CurrencyInput
                         value={editingRecurringAmount}
                         onValueChange={setEditingRecurringAmount}
-                        className="h-9 w-32 bg-background"
+                        className="h-9 bg-background"
                       />
                       <Select
                         value={editingRecurringDay}
                         onValueChange={setEditingRecurringDay}
                       >
-                        <SelectTrigger className="h-9 w-20">
+                        <SelectTrigger className="h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -796,7 +796,7 @@ export default function SettingsPage() {
                           setEditingRecurringFrequency(v as "monthly" | "yearly")
                         }
                       >
-                        <SelectTrigger className="h-9 w-28">
+                        <SelectTrigger className="h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -809,7 +809,7 @@ export default function SettingsPage() {
                           value={editingRecurringMonth}
                           onValueChange={setEditingRecurringMonth}
                         >
-                          <SelectTrigger className="h-9 w-24">
+                          <SelectTrigger className="h-9">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -821,6 +821,8 @@ export default function SettingsPage() {
                           </SelectContent>
                         </Select>
                       )}
+                    </div>
+                    <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -842,27 +844,34 @@ export default function SettingsPage() {
                 ) : (
                   <li
                     key={item._id}
-                    className={`px-4 py-2.5 flex items-center justify-between text-sm rounded-xl border bg-muted/30 hover:bg-muted/60 transition-colors ${
+                    className={`flex items-start gap-3 rounded-xl border bg-muted/30 px-4 py-3 hover:bg-muted/60 transition-colors ${
                       item.active ? "" : "opacity-60"
                     }`}
                   >
-                    <span className="flex items-center gap-2 font-medium">
-                      {item.name}
-                      <Badge variant="secondary">
-                        {formatRupiah(item.amount)}
-                      </Badge>
-                      <Badge variant="secondary">
+                    <IconChip icon={Repeat} color="amber" size="sm" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium truncate">
+                          {item.name}
+                        </span>
+                        {item.frequency === "yearly" && (
+                          <Badge variant="outline" className="text-[11px]">
+                            Tahunan
+                          </Badge>
+                        )}
+                        {!item.active && (
+                          <Badge variant="outline" className="text-[11px]">
+                            Nonaktif
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {formatRupiah(item.amount)} ·{" "}
                         {item.frequency === "yearly"
-                          ? `${MONTH_LABEL[(item.month ?? 1) - 1]} Tgl ${item.dayOfMonth}`
-                          : `Tgl ${item.dayOfMonth}`}
-                      </Badge>
-                      {item.frequency === "yearly" && (
-                        <Badge variant="secondary">Tahunan</Badge>
-                      )}
-                      {!item.active && (
-                        <Badge variant="secondary">Nonaktif</Badge>
-                      )}
-                    </span>
+                          ? `tiap ${MONTH_LABEL[(item.month ?? 1) - 1]}, tgl ${item.dayOfMonth}`
+                          : `tiap tgl ${item.dayOfMonth}`}
+                      </p>
+                    </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Button
                         variant="ghost"
@@ -897,59 +906,62 @@ export default function SettingsPage() {
           )}
           <form
             onSubmit={handleAddRecurringExpense}
-            className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2"
+            className="space-y-2 border-t pt-4"
           >
             <Input
               placeholder="Nama (mis. Netflix)"
               value={recurringName}
               onChange={(e) => setRecurringName(e.target.value)}
             />
-            <CurrencyInput
-              value={recurringAmount}
-              onValueChange={setRecurringAmount}
-              className="sm:w-36"
-            />
-            <Select value={recurringDay} onValueChange={setRecurringDay}>
-              <SelectTrigger className="sm:w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                  <SelectItem key={d} value={String(d)}>
-                    Tgl {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={recurringFrequency}
-              onValueChange={(v) =>
-                setRecurringFrequency(v as "monthly" | "yearly")
-              }
-            >
-              <SelectTrigger className="sm:w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="monthly">Bulanan</SelectItem>
-                <SelectItem value="yearly">Tahunan</SelectItem>
-              </SelectContent>
-            </Select>
-            {recurringFrequency === "yearly" && (
-              <Select value={recurringMonth} onValueChange={setRecurringMonth}>
-                <SelectTrigger className="sm:w-24">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <CurrencyInput
+                value={recurringAmount}
+                onValueChange={setRecurringAmount}
+              />
+              <Select value={recurringDay} onValueChange={setRecurringDay}>
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MONTH_LABEL.map((label, i) => (
-                    <SelectItem key={i} value={String(i + 1)}>
-                      {label}
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <SelectItem key={d} value={String(d)}>
+                      Tgl {d}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            )}
-            <Button type="submit">Tambah</Button>
+              <Select
+                value={recurringFrequency}
+                onValueChange={(v) =>
+                  setRecurringFrequency(v as "monthly" | "yearly")
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Bulanan</SelectItem>
+                  <SelectItem value="yearly">Tahunan</SelectItem>
+                </SelectContent>
+              </Select>
+              {recurringFrequency === "yearly" && (
+                <Select value={recurringMonth} onValueChange={setRecurringMonth}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_LABEL.map((label, i) => (
+                      <SelectItem key={i} value={String(i + 1)}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <Button type="submit" className="w-full sm:w-auto">
+              Tambah
+            </Button>
           </form>
         </CardContent>
       </Card>
