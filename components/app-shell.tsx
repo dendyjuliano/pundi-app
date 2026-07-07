@@ -17,6 +17,7 @@ import {
   Target,
   CreditCard,
   MoreHorizontal,
+  ArrowLeft,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -82,14 +83,30 @@ const MOBILE_NAV_ITEMS = NAV_ITEMS.filter((item) =>
   ["/dashboard", "/expenses", "/budget", "/target"].includes(item.href),
 );
 
-// Routes that should light up the "More" tab as active when visited.
+// Routes that should light up the "More" tab as active when visited —
+// includes /more itself plus every destination reachable only from that
+// page (mobile has no other entry point to them).
 const MORE_MENU_ROUTES = [
+  "/more",
   "/installments",
   "/reports",
   "/settings",
   "/admin",
   "/panduan",
 ];
+
+// Halaman yang cuma bisa dijangkau lewat tab "More" di mobile (bukan salah
+// satu dari 4 tab utama) — di-mapping ke judul buat header mobile, dipakai
+// nampilin tombol back + judul menggantikan logo Pundi biasa. PWA yang
+// di-install standalone sering tidak punya tombol back browser sama
+// sekali, jadi affordance ini penting, bukan cuma kosmetik.
+const SECONDARY_PAGE_TITLES: Record<string, string> = {
+  "/installments": "Cicilan",
+  "/reports": "Reports",
+  "/settings": "Settings",
+  "/admin": "Admin",
+  "/panduan": "Panduan",
+};
 
 function initials(name: string) {
   return name
@@ -108,6 +125,9 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const secondaryPageTitle = Object.entries(SECONDARY_PAGE_TITLES).find(
+    ([href]) => pathname.startsWith(href),
+  )?.[1];
   const visibleNavGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
@@ -213,12 +233,22 @@ export function AppShell({
 
       {/* Mobile top bar */}
       <header className="md:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 border-b bg-background/95 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-linear-to-br from-emerald-500 to-teal-600">
-            <PiggyBank className="size-3.5 text-white" />
+        {secondaryPageTitle ? (
+          <Link
+            href="/more"
+            className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-1 text-foreground"
+          >
+            <ArrowLeft className="size-5" />
+            <span className="font-semibold">{secondaryPageTitle}</span>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-linear-to-br from-emerald-500 to-teal-600">
+              <PiggyBank className="size-3.5 text-white" />
+            </div>
+            <span className="font-semibold">Pundi</span>
           </div>
-          <span className="font-semibold">Pundi</span>
-        </div>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger>
             <Avatar className="size-8">
@@ -310,78 +340,24 @@ export function AppShell({
               pathname.startsWith(r),
             );
             return (
-              <DropdownMenu>
-                <DropdownMenuTrigger
+              <Link
+                href="/more"
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-transform active:scale-95",
+                  moreActive ? "text-emerald-600" : "text-muted-foreground",
+                )}
+              >
+                <span
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-transform active:scale-95",
-                    moreActive ? "text-emerald-600" : "text-muted-foreground",
+                    "flex items-center justify-center rounded-full size-8 transition-colors",
+                    moreActive &&
+                      "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30",
                   )}
                 >
-                  <span
-                    className={cn(
-                      "flex items-center justify-center rounded-full size-8 transition-colors",
-                      moreActive &&
-                        "bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-500/30",
-                    )}
-                  >
-                    <MoreHorizontal className="size-4.5" />
-                  </span>
-                  More
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="top" className="w-48">
-                  <DropdownMenuItem asChild>
-                    <Link href="/installments">
-                      <CreditCard className="size-4" />
-                      Cicilan
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/reports">
-                      <BarChart3 className="size-4" />
-                      Reports
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings">
-                      <Settings className="size-4" />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                  {user.role === "admin" && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/admin">
-                        <Users className="size-4" />
-                        Admin
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/panduan">
-                      <HelpCircle className="size-4" />
-                      Panduan
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={WHATSAPP_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <MessageCircle className="size-4" />
-                      Hubungi
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => signOut({ callbackUrl: "/login" })}
-                  >
-                    <LogOut className="size-4" />
-                    Keluar
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <MoreHorizontal className="size-4.5" />
+                </span>
+                More
+              </Link>
             );
           })()}
         </div>

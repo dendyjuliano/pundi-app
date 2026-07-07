@@ -2902,3 +2902,59 @@ baru saja bikin Dashboard fokus ke "sisa uang riil").
       keyword cocok, gabungan keduanya kosong sesuai ekspektasi)
 - [x] tsc, eslint bersih; `pnpm build` sukses; data uji (semua akun)
       dibersihkan
+
+## Fase 71 — Halaman "Lainnya" Menggantikan Dropdown "More" di Mobile
+
+Feedback dari teman-teman user yang dijadikan tester: menu "More" di
+bottom nav mobile (sebelumnya `DropdownMenu` kecil isinya Cicilan/
+Reports/Settings/Admin/Panduan/Hubungi/Keluar) kepencet-nya susah,
+kekecilan buat ukuran tap target di HP. Disetujui: ganti jadi halaman
+penuh, pola umum "More"/"Profile" tab yang lazim di app mobile (mis.
+Instagram, WhatsApp).
+
+- [x] `app/(app)/more/page.tsx` (baru) — halaman penuh: card profil
+      (avatar+nama+email di atas, ambil dari `useSession()` client-side
+      karena halaman ini dibungkus `AppGroupLayout` server yang cuma
+      nyalur `user` ke `AppShell`, bukan ke `children`), lalu 2 grup
+      card berisi menu (Cicilan/Reports/Settings/Admin-kalau-admin;
+      Panduan/Hubungi Kami) masing-masing baris icon+label+chevron,
+      tombol "Keluar" terpisah di bawah (destructive style) — SENGAJA
+      cuma jadi tujuan tab "More" mobile, tidak ada link masuk dari
+      desktop sidebar (menu yang sama sudah ada langsung di situ)
+- [x] `components/app-shell.tsx` — slot "More" di bottom tab bar
+      diganti dari `DropdownMenu` jadi `<Link href="/more">` biasa
+      (pola sama persis 4 tab lain), `MORE_MENU_ROUTES` ditambah
+      `/more` sendiri biar tab tetap ke-highlight aktif pas lagi di
+      halaman itu maupun di semua halaman yang cuma reachable lewat
+      situ
+- [x] **Insiden di luar rencana**: dev server yang sudah jalan sejak
+      awal sesi (dipakai user buat testing manual di browser) tiba-tiba
+      berhenti total (proses hilang, bukan hang) di tengah verifikasi —
+      bukan disebabkan perubahan kode manapun sesi ini, cuma kebetulan
+      ketauan pas mau verifikasi. Di-restart ulang, dikonfirmasi
+      `/more` &amp; `/dashboard` kembali normal (200) sesudahnya
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/more` masuk daftar
+      route); verifikasi fungsional lewat akun admin asli — GET
+      `/more` &amp; `/dashboard` sama-sama 200 setelah restart server
+
+### Follow-up: Tombol Back di Header Mobile buat Halaman Lewat "More"
+
+User observasi: PWA yang di-install standalone sering tidak punya
+tombol back browser sama sekali, jadi halaman yang cuma reachable
+lewat tab "More" (Cicilan/Reports/Settings/Admin/Panduan) butuh
+affordance back eksplisit di dalam app, bukan cuma kosmetik — pola
+umum "push navigation" di app mobile native.
+
+- [x] `components/app-shell.tsx` — header mobile (`<header
+      className="md:hidden ...">`) sekarang kondisional: kalau
+      pathname cocok salah satu `SECONDARY_PAGE_TITLES` (peta baru
+      href→judul: Cicilan/Reports/Settings/Admin/Panduan), tampilkan
+      chevron back + judul halaman (link balik ke `/more`, FIXED
+      destination — bukan `router.back()` — biar konsisten walau user
+      masuk lewat bookmark/shortcut PWA langsung, bukan cuma dari
+      /more); selain itu (4 tab utama + /more sendiri) tetap tampilkan
+      logo "Pundi" seperti biasa. Desktop tidak disentuh sama sekali
+- [x] tsc, eslint bersih; `pnpm build` sukses; verifikasi fungsional
+      lewat akun admin asli — ke-6 halaman (installments/reports/
+      settings/admin/panduan/more) + dashboard semuanya tetap 200
+      sesudah perubahan
