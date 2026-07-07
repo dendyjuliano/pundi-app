@@ -3108,3 +3108,78 @@ user terdaftar.
       benar (data yang sama dipakai banner Dashboard)
 - [x] tsc, eslint bersih; `pnpm build` sukses; data uji (2 akun, 2
       family) dibersihkan
+
+## Fase 73 — Fitur Split Bill (Bagi Rata Tagihan)
+
+Lanjutan natural dari fitur Teman — user sering satu orang bayar
+duluan buat semua (makan bareng dll), perlu dibagi rata ke yang lain,
+partisipan bisa campuran keluarga + teman. Dikonfirmasi lewat
+AskUserQuestion: bagi rata saja (bukan custom nominal per orang),
+partisipan boleh keluarga + teman sekaligus (satu picker gabungan).
+User juga minta pajak/service charge (PPN dll, lazim di struk
+restoran) ikut dihitung sebelum dibagi, bukan cuma subtotal mentah.
+
+**Desain akuntansi kunci**: split bill sengaja TIDAK bikin pembayar
+kelihatan overspending buat uang yang bakal balik — bagian PEMBAYAR
+SENDIRI langsung tercatat sebagai `Expense`-nya (itu beneran
+pengeluaran dia), bagian yang ditalangin buat orang lain TIDAK ikut
+tercatat sebagai expense pembayar (itu piutang). Tiap partisipan lain
+"Tandai Lunas" bagiannya sendiri → BARU jadi `Expense` buat DIA (bukan
+pembayar) — pola sama persis `SavingsContribution`/`InstallmentPayment`
+(aksi bikin Expense terkait). Tidak ada entry "income" buat pembayar
+pas ada yang bayar balik — app ini tidak punya konsep reimbursement,
+disepakati sebagai simplifikasi yang oke.
+
+- [x] `models/SplitBill.ts` (baru) — `payerId`, `name`, `subtotal`,
+      `taxPercent` (default 0, gabungan PPN+service jadi SATU
+      persentase, bukan dipisah dengan urutan compounding — cukup buat
+      kasus umum), `totalAmount` (`subtotal + round(subtotal *
+      taxPercent/100)`, DIHITUNG SEKALI &amp; disimpan, bukan
+      dihitung ulang)
+- [x] `models/SplitBillShare.ts` (baru) — satu baris per partisipan
+      TERMASUK payer sendiri (biar query "split bill yang melibatkan
+      saya" tinggal satu collection), `amount` (bagian rata, sisa
+      pembulatan rupiah masuk ke share PAYER), `settled`/`settledAt`/
+      `expenseId` (baris payer langsung `settled:true` +
+      `expenseId` terisi saat create)
+- [x] `app/api/split-bills/route.ts` (GET list + progress "X/Y lunas"
+      per bill dari agregat share; POST create — partisipan divalidasi
+      HARUS anggota family yang sama ATAU teman accepted milik payer,
+      reuse `validateFriendCollaboratorIds` dari `lib/friendship.ts`
+      buat yang bukan family; hitung share dari `totalAmount`
+      tax-inclusive, `Math.floor` per orang + sisa ke payer),
+      `[id]/route.ts` (GET detail semua share + nama, akses cuma buat
+      yang punya baris `SplitBillShare`; DELETE cuma payer, cascade
+      share, Expense historis TETAP ADA), `[id]/settle/route.ts`
+      (POST, cuma partisipan yang bersangkutan boleh settle
+      BAGIANNYA SENDIRI — bukan payer, bukan orang lain — bikin
+      `Expense` + push notification ke payer)
+- [x] `app/(app)/split-bills/page.tsx` (baru) — list card per bill
+      (progress, badge "Kamu bayar duluan", tombol "Tandai Lunas" cuma
+      buat non-payer yang belum settled), rincian expand per
+      partisipan, form buat baru dengan Subtotal + Pajak/Service (%) +
+      tanggal + participant picker GABUNGAN (fetch
+      `/api/family-members` + `/api/friends` bareng jadi satu daftar
+      chip toggle, exclude diri sendiri dari daftar keluarga karena
+      payer implisit ikut) — live preview "Pajak: Rp.. · Total: Rp.. ·
+      ≈ Rp../orang"
+- [x] Nav: `components/app-shell.tsx` (`/split-bills` masuk grup
+      "Input" desktop sejajar Cicilan, icon `Divide` biar beda dari
+      `Receipt` yang sudah dipakai Pengeluaran; `SECONDARY_PAGE_TITLES`/
+      `MORE_MENU_ROUTES` buat tombol back &amp; highlight "More"
+      mobile), `app/(app)/more/page.tsx` (entry "Split Bill")
+- [x] Verifikasi lewat 4 akun uji **campuran family + friend + outsider**
+      (pola sesi ini): payer bikin split bill subtotal Rp100.000 +
+      PPN 11% buat 3 orang (payer + 1 anggota family + 1 teman beda
+      family) → `totalAmount` benar Rp111.000, share masing-masing
+      Rp37.000 pas (habis dibagi 3, tanpa sisa pembulatan di kasus
+      ini) → payer LANGSUNG dapat `Expense` Rp37.000 (bukan Rp111.000)
+      saat create → family member DAN friend dua-duanya bisa GET
+      detail → outsider (bukan partisipan/family/teman) → 404 → friend
+      "Tandai Lunas" → `Expense` Rp37.000 muncul di budget FRIEND
+      sendiri (bukan payer) → friend coba settle lagi (sudah lunas) →
+      400 → outsider coba settle → 404 → list view payer nampilin
+      progress "2 dari 3 lunas" dengan benar → coba bikin split bill
+      masukin id yang bukan family DAN bukan teman → 400 ditolak
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/split-bills` masuk
+      daftar route); data uji (4 akun, 3 family) dibersihkan
