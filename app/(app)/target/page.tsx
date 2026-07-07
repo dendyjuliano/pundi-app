@@ -523,7 +523,7 @@ function GoalCard({
                       {c.note ? ` · ${c.note}` : ""}
                     </span>
                   </div>
-                  {c.userId === currentUserId && (
+                  {(c.userId === currentUserId || goal.canManage) && (
                     <ConfirmDeleteButton
                       title="Hapus kontribusi ini?"
                       description="Nominal ini akan dikurangi dari total terkumpul, dan pengeluaran terkait di riwayat Pengeluaran juga ikut terhapus."
