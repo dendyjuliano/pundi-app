@@ -9,6 +9,7 @@ import {
   Users,
   UserPlus,
   Divide,
+  HandCoins,
   HelpCircle,
   MessageCircle,
   LogOut,
@@ -50,6 +51,7 @@ export default function MorePage() {
     [
       { label: "Teman", icon: UserPlus, href: "/friends" },
       { label: "Split Bill", icon: Divide, href: "/split-bills" },
+      { label: "Piutang", icon: HandCoins, href: "/receivables" },
       { label: "Cicilan", icon: CreditCard, href: "/installments" },
       { label: "Reports", icon: BarChart3, href: "/reports" },
       { label: "Settings", icon: Settings, href: "/settings" },

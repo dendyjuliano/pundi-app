@@ -48,6 +48,7 @@ import {
   Users,
   Landmark,
   CreditCard,
+  HandCoins,
 } from "lucide-react";
 
 type PeriodData = {
@@ -273,6 +274,7 @@ function HeroCard({
   onExpenseSaved,
   totalUtang,
   activeInstallmentCount,
+  totalPiutang,
 }: {
   label: string;
   totalActual: number;
@@ -283,6 +285,7 @@ function HeroCard({
   onExpenseSaved: () => void;
   totalUtang: number;
   activeInstallmentCount: number;
+  totalPiutang: number;
 }) {
   // Berapa yang BENERAN masih bisa dibelanjakan sisa periode ini — beda
   // dari "Total Bersih" (Income - Alokasi) yang cuma angka rencana di
@@ -347,6 +350,19 @@ function HeroCard({
                   </p>
                   <p className="text-sm font-semibold">
                     {formatRupiah(totalUtang)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {totalPiutang > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="flex size-8 items-center justify-center rounded-full bg-white/15">
+                  <HandCoins className="size-4" />
+                </div>
+                <div>
+                  <p className="text-xs text-emerald-50/80">Piutang Aktif</p>
+                  <p className="text-sm font-semibold">
+                    {formatRupiah(totalPiutang)}
                   </p>
                 </div>
               </div>
@@ -443,6 +459,7 @@ function MonthlyDashboard({
   onExpenseSaved,
   totalUtang,
   activeInstallmentCount,
+  totalPiutang,
 }: {
   summary: MonthlySummary;
   userName: string;
@@ -450,6 +467,7 @@ function MonthlyDashboard({
   onExpenseSaved: () => void;
   totalUtang: number;
   activeInstallmentCount: number;
+  totalPiutang: number;
 }) {
   const spentPct = Math.round(
     progressValue(summary.monthSummary.totalActual, summary.monthSummary.totalTarget)
@@ -475,6 +493,7 @@ function MonthlyDashboard({
         onExpenseSaved={onExpenseSaved}
         totalUtang={totalUtang}
         activeInstallmentCount={activeInstallmentCount}
+        totalPiutang={totalPiutang}
       />
 
       {!summary.isBudgetSaved && (
@@ -704,11 +723,13 @@ function YearlyDashboard({
   onExpenseSaved,
   totalUtang,
   activeInstallmentCount,
+  totalPiutang,
 }: {
   summary: YearlySummary;
   onExpenseSaved: () => void;
   totalUtang: number;
   activeInstallmentCount: number;
+  totalPiutang: number;
 }) {
   const spentPct = Math.round(
     progressValue(summary.totalActual, summary.totalTarget)
@@ -730,6 +751,7 @@ function YearlyDashboard({
         onExpenseSaved={onExpenseSaved}
         totalUtang={totalUtang}
         activeInstallmentCount={activeInstallmentCount}
+        totalPiutang={totalPiutang}
       />
 
       <Card>
@@ -864,6 +886,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [totalUtang, setTotalUtang] = useState(0);
   const [activeInstallmentCount, setActiveInstallmentCount] = useState(0);
+  const [totalPiutang, setTotalPiutang] = useState(0);
 
   // Dipicu dari link notifikasi push "pengeluaran berulang jatuh tempo"
   // (?confirmRecurring=<id>) — ambil detail item itu lalu buka
@@ -944,6 +967,37 @@ function DashboardContent() {
       setActiveInstallmentCount(active.length);
     })();
   }, [effectiveUserId]);
+
+  // "Piutang Aktif" gabungan dari 2 sumber: bagian orang lain yang
+  // belum settled di Split Bill (cuma dihitung buat bill yang saya
+  // payer-nya) + Receivable pribadi yang belum lunas. Beda dari
+  // Cicilan/Utang Aktif di atas, kedua endpoint ini TIDAK dukung
+  // `?userId=` admin cross-view (Split Bill/Receivable murni
+  // personal, tidak ada fitur "admin lihat milik member lain" buat
+  // keduanya) — jadi selalu nampilin punya user yang LOGIN sendiri,
+  // tidak ikut berubah pas admin switch "lihat dashboard anggota lain".
+  useEffect(() => {
+    if (!currentUserId) return;
+    (async () => {
+      const [billsRes, receivablesRes] = await Promise.all([
+        fetch("/api/split-bills"),
+        fetch("/api/receivables"),
+      ]);
+      let total = 0;
+      if (billsRes.ok) {
+        const bills: { owedToMe: number }[] = await billsRes.json();
+        total += bills.reduce((sum, b) => sum + b.owedToMe, 0);
+      }
+      if (receivablesRes.ok) {
+        const receivables: { remainingAmount: number; lunas: boolean }[] =
+          await receivablesRes.json();
+        total += receivables
+          .filter((r) => !r.lunas)
+          .reduce((sum, r) => sum + r.remainingAmount, 0);
+      }
+      setTotalPiutang(total);
+    })();
+  }, [currentUserId]);
 
   const refresh = useCallback(async () => {
     if (!effectiveUserId) return;
@@ -1092,6 +1146,7 @@ function DashboardContent() {
           onExpenseSaved={refresh}
           totalUtang={totalUtang}
           activeInstallmentCount={activeInstallmentCount}
+          totalPiutang={totalPiutang}
         />
       ) : mode === "yearly" && yearlySummary ? (
         <YearlyDashboard
@@ -1099,6 +1154,7 @@ function DashboardContent() {
           onExpenseSaved={refresh}
           totalUtang={totalUtang}
           activeInstallmentCount={activeInstallmentCount}
+          totalPiutang={totalPiutang}
         />
       ) : null}
     </div>

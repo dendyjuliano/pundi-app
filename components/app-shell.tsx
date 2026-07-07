@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   UserPlus,
   Divide,
+  HandCoins,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -61,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/target", label: "Target", icon: Target },
       { href: "/installments", label: "Cicilan", icon: CreditCard },
       { href: "/split-bills", label: "Split Bill", icon: Divide },
+      { href: "/receivables", label: "Piutang", icon: HandCoins },
     ],
   },
   {
@@ -99,6 +101,7 @@ const MORE_MENU_ROUTES = [
   "/panduan",
   "/friends",
   "/split-bills",
+  "/receivables",
 ];
 
 // Halaman yang cuma bisa dijangkau lewat tab "More" di mobile (bukan salah
@@ -114,6 +117,7 @@ const SECONDARY_PAGE_TITLES: Record<string, string> = {
   "/panduan": "Panduan",
   "/friends": "Teman",
   "/split-bills": "Split Bill",
+  "/receivables": "Piutang",
 };
 
 function initials(name: string) {

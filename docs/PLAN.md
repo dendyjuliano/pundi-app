@@ -3183,3 +3183,89 @@ disepakati sebagai simplifikasi yang oke.
       masukin id yang bukan family DAN bukan teman → 400 ditolak
 - [x] tsc, eslint bersih; `pnpm build` sukses (`/split-bills` masuk
       daftar route); data uji (4 akun, 3 family) dibersihkan
+
+## Fase 74 — Fitur Piutang (Uang Dipinjamkan ke Orang Lain) + Widget "Piutang Aktif"
+
+Lanjutan diskusi arah pengembangan setelah Split Bill — user setuju
+duluan bikin widget "Piutang Aktif" di Dashboard (mirror dari "Utang
+Aktif" yang sudah ada buat Cicilan), lalu lanjut bikin fitur Piutang
+standalone (orang lain berutang ke kita, DI LUAR konteks split bill).
+
+**Keputusan desain kunci**: beda dari Split Bill/Cicilan/Friends yang
+semuanya butuh pihak lain PUNYA akun Pundi, Piutang standalone SENGAJA
+tidak begitu — user secara eksplisit menekankan "untuk siapa yang
+hutang mungkin bisa diluar teman atau keluarga, karna bisa aja orang
+lain kan yang dimana tidak terdaftar". Debitur cuma **nama teks bebas**
+(mis. "Budi"), BUKAN referensi ke `User`. Konsekuensinya: TIDAK ada
+validasi cross-user, TIDAK ada push notification ke debitur (mereka
+belum tentu punya akun buat nerima), TIDAK ada accept/settle dari sisi
+mereka — **PENCATAT SENDIRI (lender) yang mencatat tiap pembayaran
+diterima**, beda dari Split Bill di mana tiap partisipan nge-settle
+bagiannya sendiri. Piutang jadi murni personal ledger, paling simpel
+dari fitur manapun sesi ini (tidak ada family/friend validation, tidak
+ada 403/404 access-control lintas akun — cukup cek `userId: user.id`).
+
+**Prinsip akuntansi konsisten** (sama kayak keputusan Split Bill):
+Piutang TIDAK bikin `Expense` apa pun — baik pas dibuat (uang yang
+dipinjemkan bukan "pengeluaran", cuma sementara keluar dari kantong)
+maupun pas dibayar balik (app ini tidak model reimbursement/income-
+offset). Murni catatan tersendiri, tidak menyentuh Expense/budget sama
+sekali.
+
+- [x] `models/Receivable.ts` (baru) — `userId` (ref User, si pemberi
+      pinjaman), `debtorName` (String teks bebas, BUKAN `User` id),
+      `amount`, `description`/`dueDate` opsional
+- [x] `models/ReceivablePayment.ts` (baru) — running-log pembayaran
+      diterima (bisa dicicil/parsial, pola sama `InstallmentPayment`
+      tapi SENGAJA TANPA `expenseId` — tidak ada Expense yang di-link
+      sama sekali). `lunas` = `paidAmount >= amount` DIHITUNG on-the-fly
+      dari SUM payment (pola sama `SavingsGoal`/Installment, bukan
+      field ter-cache)
+- [x] `app/api/receivables/route.ts` (GET list + `paidAmount`/
+      `remainingAmount`/`lunas` terhitung dari agregat; POST create —
+      TIDAK ada validasi cross-user sama sekali karena `debtorName`
+      bukan referensi `User`), `[id]/route.ts` (GET/PATCH/DELETE,
+      DELETE cascade hapus `ReceivablePayment` terkait — TIDAK ada
+      Expense yang perlu dipertimbangkan sama sekali, beda dari fitur
+      lain manapun), `[id]/payments/route.ts` (GET riwayat, POST catat
+      pembayaran — TIDAK bikin Expense, TIDAK ada push notification),
+      `[id]/payments/[paymentId]/route.ts` (DELETE koreksi salah catat)
+- [x] `app/api/split-bills/route.ts` — tambah field `owedToMe` per bill
+      (SUM `SplitBillShare.amount` partisipan LAIN yang `settled:
+      false`, cuma dihitung kalau `isPayer`) buat melengkapi widget
+      Piutang Aktif gabungan
+- [x] `app/(app)/dashboard/page.tsx` — sub-stat ke-4 di `HeroCard`
+      (sejajar Income/Alokasi/Utang Aktif), icon `HandCoins`, label
+      "Piutang Aktif", SENGAJA cuma tampil kalau `totalPiutang > 0`.
+      `totalPiutang` = SUM `owedToMe` semua split bill + SUM
+      `remainingAmount` receivable yang belum lunas — fetch paralel ke
+      `/api/split-bills` + `/api/receivables`, keyed `currentUserId`
+      (BUKAN `effectiveUserId` — kedua API ini belum support admin
+      cross-view `?userId=`)
+- [x] `app/(app)/receivables/page.tsx` (baru) — list card per piutang
+      (nama debitur, progress terbayar Rp../Rp.., badge "Lunas", badge
+      jatuh tempo, tombol "Catat Pembayaran" dialog nominal+tanggal
+      TANPA field Expense apa pun, riwayat pembayaran collapsible
+      dengan hapus per baris), form "Piutang Baru" — Nama Debitur
+      `Input` teks bebas (BUKAN picker/select, sengaja beda dari Split
+      Bill/Target yang pakai picker user), `CurrencyInput` nominal,
+      keterangan opsional, jatuh tempo opsional (Popover+Calendar)
+- [x] Nav: `components/app-shell.tsx` (`/receivables` masuk grup
+      "Input" desktop sejajar Cicilan/Split Bill, icon `HandCoins`;
+      `SECONDARY_PAGE_TITLES`/`MORE_MENU_ROUTES` buat tombol back &amp;
+      highlight "More" mobile), `app/(app)/more/page.tsx` (entry
+      "Piutang")
+- [x] Verifikasi lewat 1 akun uji personal + 1 akun teman (buat sisi
+      split bill widget): bikin piutang "Budi" Rp500.000 →
+      `remainingAmount: 500000, lunas: false` → bayar parsial Rp200.000
+      → `paidAmount: 200000, remainingAmount: 300000` → bayar lagi
+      Rp300.000 → `lunas: true` → hapus payment pertama → `lunas`
+      balik `false`, `remainingAmount: 200000` → cek TIDAK ADA Expense
+      baru tercipta dari semua aksi piutang di atas (`Expense` count
+      untuk user tetap 0, beda dari Cicilan/Split Bill yang bikin
+      Expense) → bikin split bill Rp100.000 ke 1 teman → `owedToMe:
+      50000` → kombinasi widget Piutang Aktif = Rp50.000 (split bill)
+      + Rp200.000 (receivable) = Rp250.000 gabungan, sesuai formula
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/receivables` +
+      4 route API baru masuk daftar route); data uji (2 akun, 2
+      family) dibersihkan

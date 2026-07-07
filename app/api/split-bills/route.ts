@@ -21,17 +21,33 @@ export async function GET() {
   const bills = await SplitBill.find({ _id: { $in: billIds } });
   const billById = new Map(bills.map((b) => [b._id.toString(), b]));
 
-  // Progress "X dari Y orang lunas" per bill — berguna buat ditampilkan
-  // baik ke payer maupun partisipan lain, bukan cuma buat payer.
+  // Progress "X dari Y orang lunas" + "owedToMe" (jumlah yang masih
+  // dipiutangkan ke bagian ORANG LAIN, cuma relevan kalau saya payer)
+  // per bill — dipakai juga buat widget "Piutang Aktif" di Dashboard.
   const allShares = await SplitBillShare.find({
     splitBillId: { $in: billIds },
   });
-  const progressByBill = new Map<string, { settled: number; total: number }>();
+  const progressByBill = new Map<
+    string,
+    { settled: number; total: number; owedToMe: number }
+  >();
   for (const s of allShares) {
     const key = s.splitBillId.toString();
-    const entry = progressByBill.get(key) ?? { settled: 0, total: 0 };
+    const bill = billById.get(key);
+    const entry = progressByBill.get(key) ?? {
+      settled: 0,
+      total: 0,
+      owedToMe: 0,
+    };
     entry.total += 1;
     if (s.settled) entry.settled += 1;
+    if (
+      bill &&
+      !s.settled &&
+      s.userId.toString() !== bill.payerId.toString()
+    ) {
+      entry.owedToMe += s.amount;
+    }
     progressByBill.set(key, entry);
   }
 
@@ -39,9 +55,11 @@ export async function GET() {
     .map((s) => {
       const bill = billById.get(s.splitBillId.toString());
       if (!bill) return null;
+      const isPayer = bill.payerId.toString() === user.id;
       const progress = progressByBill.get(bill._id.toString()) ?? {
         settled: 0,
         total: 0,
+        owedToMe: 0,
       };
       return {
         _id: bill._id,
@@ -50,12 +68,13 @@ export async function GET() {
         taxPercent: bill.taxPercent,
         totalAmount: bill.totalAmount,
         date: bill.date,
-        isPayer: bill.payerId.toString() === user.id,
+        isPayer,
         myShareId: s._id,
         myAmount: s.amount,
         mySettled: s.settled,
         participantsSettled: progress.settled,
         participantsTotal: progress.total,
+        owedToMe: isPayer ? progress.owedToMe : 0,
       };
     })
     .filter((b): b is NonNullable<typeof b> => b !== null);
