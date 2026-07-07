@@ -45,18 +45,23 @@ type SavingsGoalAccessCheck = {
   userId: { toString(): string };
   familyId: { toString(): string };
   shared: boolean;
+  friendCollaboratorIds?: { toString(): string }[];
 };
 
 // Goal Pribadi (shared: false) cuma kelihatan buat pembuatnya sendiri —
 // perilaku sama seperti sebelum fitur kolaboratif ada. Goal Bersama
 // kelihatan buat siapa saja di family yang sama, apapun role-nya.
+// `friendCollaboratorIds` nambah akses buat user SPESIFIK di luar
+// keluarga (harus teman accepted, divalidasi saat ditambahkan ke goal —
+// lihat app/api/savings-goals/route.ts), independen dari `shared`.
 export function canAccessSavingsGoal(
   goal: SavingsGoalAccessCheck,
   user: { id: string; familyId: string }
 ) {
   return (
     goal.userId.toString() === user.id ||
-    (goal.shared && goal.familyId.toString() === user.familyId)
+    (goal.shared && goal.familyId.toString() === user.familyId) ||
+    (goal.friendCollaboratorIds ?? []).some((id) => id.toString() === user.id)
   );
 }
 

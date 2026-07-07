@@ -30,6 +30,7 @@ import { IconChip } from "@/components/icon-chip";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
 import { ConfirmInstallmentDialog } from "@/components/confirm-installment-dialog";
 import { SavingsGoalNudgeBanner } from "@/components/savings-goal-nudge-banner";
+import { FriendRequestNudgeBanner } from "@/components/friend-request-nudge-banner";
 import {
   Receipt,
   Wallet,
@@ -1075,6 +1076,7 @@ function DashboardContent() {
         </div>
       </div>
 
+      <FriendRequestNudgeBanner />
       <SavingsGoalNudgeBanner />
 
       {loading ? (

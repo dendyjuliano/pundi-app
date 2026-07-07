@@ -98,20 +98,26 @@ export async function POST(
     expenseId: expense._id,
   });
 
-  // Goal Bersama — kabari anggota keluarga LAIN (bukan diri sendiri) lewat
-  // push notification, biar progress kontribusi kelihatan real-time tanpa
-  // mereka harus buka halaman Target duluan. Best-effort: kegagalan kirim
-  // push (mis. VAPID belum diset, subscription sudah tidak valid) TIDAK
-  // boleh menggagalkan response kontribusi utama yang sudah sukses tersimpan.
-  if (goal.shared) {
+  // Goal Bersama (keluarga) dan/atau ada kolaborator teman — kabari
+  // semuanya LAIN (bukan diri sendiri) lewat push notification, biar
+  // progress kontribusi kelihatan real-time tanpa mereka harus buka
+  // halaman Target duluan. Best-effort: kegagalan kirim push (mis. VAPID
+  // belum diset, subscription sudah tidak valid) TIDAK boleh
+  // menggagalkan response kontribusi utama yang sudah sukses tersimpan.
+  if (goal.shared || goal.friendCollaboratorIds.length > 0) {
     try {
-      const familyMembers = await UserModel.find({ familyId: user.familyId });
-      const contributorName =
-        familyMembers.find((u) => u._id.toString() === user.id)?.name ??
-        "Anggota";
-      const otherMemberIds = familyMembers
-        .filter((u) => u._id.toString() !== user.id)
-        .map((u) => u._id.toString());
+      const recipientIds = new Set<string>();
+      if (goal.shared) {
+        const familyMembers = await UserModel.find(
+          { familyId: user.familyId },
+          "_id"
+        );
+        familyMembers.forEach((u) => recipientIds.add(u._id.toString()));
+      }
+      goal.friendCollaboratorIds.forEach((id: { toString(): string }) =>
+        recipientIds.add(id.toString())
+      );
+      recipientIds.delete(user.id);
 
       const totals = await SavingsContribution.aggregate([
         { $match: { goalId: goal._id } },
@@ -123,9 +129,9 @@ export async function POST(
           ? Math.min(100, Math.round((totalContributed / goal.targetAmount) * 100))
           : 0;
 
-      await sendPushToUsers(otherMemberIds, {
+      await sendPushToUsers([...recipientIds], {
         title: "Pundi",
-        body: `${contributorName} baru menambah ${formatRupiah(
+        body: `${user.name ?? "Anggota"} baru menambah ${formatRupiah(
           amount
         )} ke "${goal.name}" — total kini ${progressPct}%`,
         url: "/target",

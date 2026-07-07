@@ -13,6 +13,12 @@ const savingsGoalSchema = new Schema(
     // pembuatnya sendiri (perilaku lama, tidak berubah). true = goal
     // Bersama, kelihatan & bisa dikontribusi semua anggota familyId ini.
     shared: { type: Boolean, default: false },
+    // Kolaborator TAMBAHAN di luar keluarga (harus teman accepted milik
+    // pembuat goal, divalidasi di route) — ADDITIF, independen dari
+    // `shared`. Bisa dipakai sendirian (goal pribadi + beberapa teman,
+    // tanpa keluarga) atau digabung sama `shared:true` (keluarga +
+    // teman sekaligus).
+    friendCollaboratorIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     name: { type: String, required: true },
     targetAmount: { type: Number, required: true },
     targetDate: { type: Date },

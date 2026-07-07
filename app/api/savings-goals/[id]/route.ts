@@ -5,6 +5,7 @@ import {
   canEditSavingsGoal,
   getCurrentUser,
 } from "@/lib/session";
+import { validateFriendCollaboratorIds } from "@/lib/friendship";
 import SavingsGoal from "@/models/SavingsGoal";
 import SavingsContribution from "@/models/SavingsContribution";
 
@@ -39,12 +40,18 @@ export async function PATCH(
     targetAmount?: number;
     targetDate?: Date | null;
     shared?: boolean;
+    friendCollaboratorIds?: string[];
   } = {};
   if (typeof body.name === "string" && body.name.trim()) {
     update.name = body.name.trim();
   }
   if (typeof body.shared === "boolean") {
     update.shared = body.shared;
+  }
+  if (Array.isArray(body.friendCollaboratorIds)) {
+    update.friendCollaboratorIds = (
+      body.friendCollaboratorIds as unknown[]
+    ).filter((id): id is string => typeof id === "string");
   }
   if (body.targetAmount !== undefined) {
     const targetAmount = Number(body.targetAmount);
@@ -78,6 +85,20 @@ export async function PATCH(
   }
   if (!canEditSavingsGoal(existing, user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (update.friendCollaboratorIds) {
+    // Validasi terhadap teman milik PEMBUAT goal (bukan yang lagi
+    // PATCH — bisa jadi admin keluarga yang mengelola goal Bersama
+    // anggota lain), konsisten sama makna "kolaborator teman milik
+    // pembuat goal" di POST create.
+    const friendCheck = await validateFriendCollaboratorIds(
+      existing.userId.toString(),
+      update.friendCollaboratorIds
+    );
+    if (!friendCheck.ok) {
+      return NextResponse.json({ error: friendCheck.error }, { status: 400 });
+    }
   }
 
   Object.assign(existing, update);

@@ -7,6 +7,7 @@ import {
   BarChart3,
   Settings,
   Users,
+  UserPlus,
   HelpCircle,
   MessageCircle,
   LogOut,
@@ -46,6 +47,7 @@ export default function MorePage() {
 
   const menuSections: MenuItem[][] = [
     [
+      { label: "Teman", icon: UserPlus, href: "/friends" },
       { label: "Cicilan", icon: CreditCard, href: "/installments" },
       { label: "Reports", icon: BarChart3, href: "/reports" },
       { label: "Settings", icon: Settings, href: "/settings" },

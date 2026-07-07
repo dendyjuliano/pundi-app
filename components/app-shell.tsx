@@ -18,6 +18,7 @@ import {
   CreditCard,
   MoreHorizontal,
   ArrowLeft,
+  UserPlus,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -67,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Pengaturan",
     items: [
+      { href: "/friends", label: "Teman", icon: UserPlus },
       { href: "/settings", label: "Settings", icon: Settings },
       { href: "/admin", label: "Admin", icon: Users, adminOnly: true },
     ],
@@ -93,6 +95,7 @@ const MORE_MENU_ROUTES = [
   "/settings",
   "/admin",
   "/panduan",
+  "/friends",
 ];
 
 // Halaman yang cuma bisa dijangkau lewat tab "More" di mobile (bukan salah
@@ -106,6 +109,7 @@ const SECONDARY_PAGE_TITLES: Record<string, string> = {
   "/settings": "Settings",
   "/admin": "Admin",
   "/panduan": "Panduan",
+  "/friends": "Teman",
 };
 
 function initials(name: string) {

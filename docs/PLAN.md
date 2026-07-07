@@ -2958,3 +2958,153 @@ umum "push navigation" di app mobile native.
       lewat akun admin asli — ke-6 halaman (installments/reports/
       settings/admin/panduan/more) + dashboard semuanya tetap 200
       sesudah perubahan
+
+## Fase 72 — Fitur Teman (Friend List) + Undang Teman ke Target Tabungan
+
+User ingin bisa mengisi Target Tabungan bareng orang di LUAR
+keluarganya (teman), atau kombinasi keluarga + teman sekaligus di goal
+yang sama. Dikonfirmasi lewat AskUserQuestion: scope-nya friend-list
+PERMANEN (bukan cuma invite sekali pakai per-goal) — ada halaman
+"Teman" tersendiri dengan friend request/accept, reusable buat fitur
+lain ke depannya.
+
+**Perubahan arsitektur penting**: fitur PERTAMA di app ini yang
+SENGAJA melintasi batas `familyId` — semua fitur sebelumnya (admin
+lihat member, goal Bersama, cicilan) dibatasi ketat cuma sesama
+anggota family yang sama. Teman secara definisi ada di family lain,
+jadi butuh mekanisme akses baru independen dari family, bukan
+modifikasi konsep family yang sudah ada. Karena tidak ada infra email
+(nodemailer/dll) di project ini, invite HANYA bisa ke user yang SUDAH
+terdaftar (dicari exact-match by email, `User.email` sudah `unique`).
+
+- [x] `models/Friendship.ts` (baru) — `fromUserId`/`toUserId`/`status`
+      (pending/accepted/declined), unique index pasangan+arah. Kasus A
+      kirim request ke B padahal B baru saja kirim ke A (belum sempat
+      accept) — auto-match: row PENDING yang sudah ada langsung
+      di-set `accepted` (bukan bikin row baru)
+- [x] `app/api/friends/route.ts` (GET daftar teman accepted + POST
+      kirim request by email), `app/api/friends/requests/route.ts`
+      (GET gabungan permintaan masuk+keluar, section terpisah buat
+      UI), `app/api/friends/[id]/route.ts` (PATCH accept/decline —
+      cuma `toUserId`; DELETE batalkan pending (cuma `fromUserId`) atau
+      unfriend relasi accepted (kedua pihak boleh))
+- [x] Push notification (reuse `lib/push.ts`, pola Fase 66): `toUserId`
+      dapat notif pas ada request baru, `fromUserId` dapat notif pas
+      request-nya di-accept — best-effort, try/catch
+- [x] `models/SavingsGoal.ts` — tambah `friendCollaboratorIds`
+      (array ObjectId, ADDITIF — `shared` family-wide TIDAK berubah
+      sama sekali). Kombinasi yang jadi mungkin: goal pribadi + teman
+      (tanpa keluarga), goal Bersama keluarga + teman sekaligus, atau
+      kombinasi lain — persis yang diminta user
+- [x] `lib/friendship.ts` (baru) — `validateFriendCollaboratorIds()`,
+      dipakai di POST &amp; PATCH savings-goals buat mastiin id yang
+      dikirim beneran teman ACCEPTED milik PEMBUAT goal (bukan
+      dipercaya dari body request begitu saja)
+- [x] `lib/session.ts` `canAccessSavingsGoal` diperluas cek
+      `friendCollaboratorIds` juga; `canEditSavingsGoal` TIDAK berubah
+      (kolaborator teman cuma bisa lihat+kontribusi, sama pembatasan
+      anggota keluarga di goal Bersama)
+- [x] `app/api/savings-goals/route.ts` (GET query `$or` ditambah
+      `friendCollaboratorIds`, response tambah `friendCollaborators:
+      {id,name}[]`; POST terima+validasi `friendCollaboratorIds`),
+      `[id]/route.ts` (PATCH terima+validasi juga, divalidasi terhadap
+      teman PEMILIK goal — bukan admin yang PATCH, kalau beda),
+      `[id]/contributions/route.ts` (penerima push notification
+      digabung: anggota keluarga kalau `shared` + `friendCollaboratorIds`,
+      dedupe, exclude kontributor sendiri — riwayat kontribusi TIDAK
+      perlu diubah sama sekali, lookup nama sudah query `UserModel`
+      langsung by id independen dari family)
+- [x] `app/(app)/friends/page.tsx` (baru) — form tambah teman by email,
+      section Permintaan Masuk (terima/tolak), Permintaan Terkirim
+      (batalkan), Daftar Teman (hapus pertemanan) — **bug ketauan &amp;
+      diperbaiki sebelum ship**: `GET /api/friends` awalnya cuma balikin
+      user id (dipakai buat identifikasi teman), tapi tombol hapus
+      butuh FRIENDSHIP id (beda field) — diperbaiki dengan nambah
+      `friendshipId` terpisah di response
+- [x] `app/(app)/target/page.tsx` — komponen baru
+      `FriendCollaboratorPicker` (chip toggle sederhana, reused di form
+      create &amp; mode edit), badge "+N teman" di `GoalCard` kalau ada
+      kolaborator, riwayat kontribusi nampilin nama kontributor kalau
+      `shared` ATAU ada `friendCollaborators` (sebelumnya cuma cek
+      `shared`)
+- [x] Nav: `components/app-shell.tsx` (`/friends` masuk grup
+      "Pengaturan" desktop + `SECONDARY_PAGE_TITLES`/`MORE_MENU_ROUTES`
+      buat tombol back &amp; highlight "More" mobile),
+      `app/(app)/more/page.tsx` (entry "Teman")
+- [x] Verifikasi lewat 3 akun uji **di FAMILY BERBEDA-BEDA** (poin
+      utama fitur ini): A kirim request ke B → B accept → saling
+      muncul di daftar teman; A kirim ke C, C kirim balik ke A hampir
+      bersamaan → auto-match langsung accepted (tidak bikin row
+      dobel) → duplikat request setelah berteman → 400; self-request →
+      400; email tidak terdaftar → 404. A bikin goal `shared:false` +
+      `friendCollaboratorIds:[B]` → B (family lain) bisa lihat &amp;
+      kontribusi, kontribusi masuk ke `Expense` BUDGET B (bukan A),
+      riwayat kontribusi nampilin "Friend B" dengan benar tanpa
+      perubahan kode tambahan → C (teman A juga, tapi tidak
+      ditambahkan ke goal INI) tetap TIDAK lihat goal ini (list
+      kosong) → B coba PATCH goal (bukan owner) → 403 → coba bikin
+      goal dengan `friendCollaboratorIds` isi id random (bukan teman)
+      → 400 ditolak dengan pesan jelas
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/friends` masuk
+      daftar route); data uji (3 akun, 3 family) dibersihkan
+
+### Follow-up: Live Search Tambah Teman &amp; Banner Permintaan di Dashboard
+
+User minta form "Tambah Teman" (sebelumnya wajib ketik email persis)
+diganti jadi live search yang bisa diklik, plus banner permintaan
+pertemanan masuk di Dashboard biar kelihatan tanpa buka halaman Teman
+duluan. Live search sengaja DIBATASI (bukan directory search bebas) —
+dikonfirmasi lewat AskUserQuestion: minimal 3 karakter, hasil maks 5,
+email ditampilkan ter-mask sebagian (`j***@domain.com`) — biar tetap
+bisa browse &amp; klik tapi tidak jadi alat buat "menjelajahi" semua
+user terdaftar.
+
+- [x] `app/api/friends/search/route.ts` (baru) — GET `?q=`, balikin
+      `[]` kalau query &lt;3 karakter (bukan cuma validasi client-side),
+      cari `name` ATAU `email` (regex case-insensitive, karakter
+      spesial di-escape), exclude diri sendiri + user yang sudah
+      pending/accepted (relasi `declined` SENGAJA TIDAK di-exclude,
+      biar masih bisa dicari &amp; request-nya dikirim ulang), limit 5,
+      email di-mask (`maskEmail()`)
+- [x] `app/api/friends/route.ts` (POST) — terima `userId` sebagai
+      alternatif `email` (dipakai pas klik hasil search, yang cuma
+      punya id + email ter-mask, bukan email asli)
+- [x] **Bug ketauan &amp; diperbaiki sekalian** (baru kesorot pas
+      desain ulang alur search+klik, sebelumnya belum pernah
+      ke-exercise di testing): kirim ulang request ke orang yang
+      PERNAH nolak sebelumnya bakal CRASH — unique index
+      `{fromUserId,toUserId}` di `Friendship` nolak `create()` baru
+      karena row `declined` lama masih nempatin slot unique yang sama.
+      Fixed: kalau relasi existing statusnya `declined`, REUSE row yang
+      sama (update jadi `pending` lagi, arah baru) bukan bikin dokumen
+      baru
+- [x] `app/(app)/friends/page.tsx` — form "Tambah Teman" diganti total
+      jadi search box ter-debounce (350ms), nampilin daftar hasil
+      (nama + email ter-mask) di bawahnya kalau ketikan ≥3 karakter,
+      klik tombol "Kirim" langsung POST pakai `userId`
+- [x] **Lint gotcha ketemu dua kali &amp; diperbaiki**: `useEffect`
+      yang manggil `setState` langsung di badan efek (bukan di dalam
+      callback async/timeout) kena `react-hooks/set-state-in-effect` —
+      fix-nya selalu sama: pindahkan `setState` ke dalam
+      callback timeout/fetch, JANGAN panggil langsung di badan efek
+      buat kondisi early-return (biarkan render yang nge-gate
+      tampilan, bukan reset state secara sinkron)
+- [x] `components/friend-request-nudge-banner.tsx` (baru) — pola
+      IDENTIK `SavingsGoalNudgeBanner` (dismiss per hari via
+      localStorage, key terpisah): fetch `/api/friends/requests`,
+      tampil kalau `incoming.length > 0`, link ke `/friends`
+- [x] `app/(app)/dashboard/page.tsx` — render `FriendRequestNudgeBanner`
+      di ATAS `SavingsGoalNudgeBanner` (permintaan pertemanan lebih
+      actionable/time-sensitive daripada sekadar saran fitur)
+- [x] Verifikasi lewat 2 akun uji beda family: search 2 karakter → `[]`
+      kosong (gate server-side jalan); search nama teman → ketemu,
+      email ter-mask, diri sendiri tidak muncul; kirim request via
+      `userId` (klik hasil search) → search ulang nama yang sama →
+      TIDAK muncul lagi (sudah pending, ter-exclude); direspon
+      "declined" → search ulang → MUNCUL LAGI (declined tidak
+      di-exclude) → kirim ulang request ke row yang sama → sukses
+      (200, row di-reuse jadi pending lagi, TIDAK crash) → cek
+      `/api/friends/requests` penerima nampilin request masuk dengan
+      benar (data yang sama dipakai banner Dashboard)
+- [x] tsc, eslint bersih; `pnpm build` sukses; data uji (2 akun, 2
+      family) dibersihkan

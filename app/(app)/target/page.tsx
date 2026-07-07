@@ -57,7 +57,10 @@ type SavingsGoal = {
   isOwner: boolean;
   canManage: boolean;
   contributed: number;
+  friendCollaborators: { id: string; name: string }[];
 };
+
+type Friend = { id: string; name: string };
 
 type Contribution = {
   _id: string;
@@ -210,21 +213,62 @@ function AddContributionDialog({
   );
 }
 
+function FriendCollaboratorPicker({
+  friends,
+  selectedIds,
+  onToggle,
+}: {
+  friends: Friend[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  if (friends.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium">Undang Teman</p>
+      <div className="flex flex-wrap gap-2">
+        {friends.map((f) => {
+          const checked = selectedIds.includes(f.id);
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => onToggle(f.id)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                checked
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-input text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              {f.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function GoalCard({
   goal,
   currentUserId,
   hasFamilyMembers,
+  friends,
   onChanged,
 }: {
   goal: SavingsGoal;
   currentUserId: string | undefined;
   hasFamilyMembers: boolean;
+  friends: Friend[];
   onChanged: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(goal.name);
   const [editTargetAmount, setEditTargetAmount] = useState(goal.targetAmount);
   const [editShared, setEditShared] = useState(goal.shared);
+  const [editFriendIds, setEditFriendIds] = useState<string[]>(
+    goal.friendCollaborators.map((f) => f.id)
+  );
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [contributions, setContributions] = useState<Contribution[] | null>(
@@ -242,7 +286,14 @@ function GoalCard({
     setEditName(goal.name);
     setEditTargetAmount(goal.targetAmount);
     setEditShared(goal.shared);
+    setEditFriendIds(goal.friendCollaborators.map((f) => f.id));
     setEditing(true);
+  }
+
+  function toggleEditFriend(id: string) {
+    setEditFriendIds((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
   }
 
   async function saveEdit() {
@@ -254,6 +305,7 @@ function GoalCard({
         name: editName.trim(),
         targetAmount: editTargetAmount,
         shared: editShared,
+        friendCollaboratorIds: editFriendIds,
       }),
     });
     if (!res.ok) {
@@ -346,6 +398,11 @@ function GoalCard({
                 <span>Bagikan ke keluarga</span>
               </label>
             )}
+            <FriendCollaboratorPicker
+              friends={friends}
+              selectedIds={editFriendIds}
+              onToggle={toggleEditFriend}
+            />
           </div>
         ) : (
           <>
@@ -361,6 +418,14 @@ function GoalCard({
                     >
                       <Users className="size-3" />
                       Bersama
+                    </Badge>
+                  )}
+                  {goal.friendCollaborators.length > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 border-blue-200 text-blue-700"
+                    >
+                      +{goal.friendCollaborators.length} teman
                     </Badge>
                   )}
                 </div>
@@ -452,7 +517,9 @@ function GoalCard({
                     <span className="font-medium">{formatRupiah(c.amount)}</span>{" "}
                     <span className="text-muted-foreground">
                       {formatShortDate(c.date)}
-                      {goal.shared ? ` · ${c.contributorName}` : ""}
+                      {goal.shared || goal.friendCollaborators.length > 0
+                        ? ` · ${c.contributorName}`
+                        : ""}
                       {c.note ? ` · ${c.note}` : ""}
                     </span>
                   </div>
@@ -481,12 +548,14 @@ export default function TargetPage() {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasFamilyMembers, setHasFamilyMembers] = useState(false);
+  const [friends, setFriends] = useState<Friend[]>([]);
 
   const [name, setName] = useState("");
   const [targetAmount, setTargetAmount] = useState(0);
   const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
   const [dateOpen, setDateOpen] = useState(false);
   const [shared, setShared] = useState(false);
+  const [friendIds, setFriendIds] = useState<string[]>([]);
 
   async function loadGoals() {
     const res = await fetch("/api/savings-goals");
@@ -495,17 +564,27 @@ export default function TargetPage() {
 
   useEffect(() => {
     (async () => {
-      const [, membersRes] = await Promise.all([
+      const [, membersRes, friendsRes] = await Promise.all([
         loadGoals(),
         fetch("/api/family-members"),
+        fetch("/api/friends"),
       ]);
       if (membersRes.ok) {
         const members = await membersRes.json();
         setHasFamilyMembers(members.length > 1);
       }
+      if (friendsRes.ok) {
+        setFriends(await friendsRes.json());
+      }
       setLoading(false);
     })();
   }, []);
+
+  function toggleNewFriend(id: string) {
+    setFriendIds((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
+  }
 
   async function handleAddGoal(e: React.FormEvent) {
     e.preventDefault();
@@ -518,6 +597,7 @@ export default function TargetPage() {
         targetAmount,
         targetDate: targetDate ? toISODate(targetDate) : undefined,
         shared,
+        friendCollaboratorIds: friendIds,
       }),
     });
     if (!res.ok) {
@@ -529,6 +609,7 @@ export default function TargetPage() {
     setTargetAmount(0);
     setTargetDate(undefined);
     setShared(false);
+    setFriendIds([]);
     loadGoals();
   }
 
@@ -568,6 +649,7 @@ export default function TargetPage() {
               goal={g}
               currentUserId={currentUserId}
               hasFamilyMembers={hasFamilyMembers}
+              friends={friends}
               onChanged={loadGoals}
             />
           ))}
@@ -638,6 +720,12 @@ export default function TargetPage() {
                 </span>
               </label>
             )}
+
+            <FriendCollaboratorPicker
+              friends={friends}
+              selectedIds={friendIds}
+              onToggle={toggleNewFriend}
+            />
 
             <Button type="submit" className="w-full sm:w-auto">
               Tambah
