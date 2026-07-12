@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Masuk",
-  description: "Masuk ke akun Pundi untuk lanjut kelola keuangan keluargamu.",
+  description: "Masuk ke akun Pundi untuk lanjut kelola keuanganmu.",
   alternates: { canonical: "/login" },
 };
 

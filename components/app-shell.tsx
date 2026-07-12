@@ -21,6 +21,7 @@ import {
   UserPlus,
   Divide,
   HandCoins,
+  Briefcase,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -231,6 +232,13 @@ export function AppShell({
                 <p className="text-xs text-muted-foreground">{user.email}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/business">
+                  <Briefcase className="size-4" />
+                  Pundi Business
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
                 onClick={() => signOut({ callbackUrl: "/login" })}
@@ -297,6 +305,13 @@ export function AppShell({
                 <MessageCircle className="size-4" />
                 Hubungi
               </a>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/business">
+                <Briefcase className="size-4" />
+                Pundi Business
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Daftar Akun",
   description:
-    "Daftar gratis di Pundi — kelola pemasukan, alokasi, dan pengeluaran harian keluargamu dalam satu tempat.",
+    "Daftar gratis di Pundi — kelola pemasukan, alokasi, dan pengeluaran harianmu, dari pribadi sampai bisnis, dalam satu tempat.",
   alternates: { canonical: "/register" },
 };
 

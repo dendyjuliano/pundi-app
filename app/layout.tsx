@@ -18,17 +18,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} — Kelola Keuangan Keluarga`,
+    default: `${SITE_NAME} — Kelola Keuangan Pribadi & Bisnis`,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    "kelola keuangan keluarga",
+    "kelola keuangan pribadi",
     "aplikasi budget keluarga",
     "catat pengeluaran harian",
     "aplikasi keuangan pribadi",
+    "laporan keuangan bisnis UMKM",
     "budgeting app Indonesia",
     "Pundi",
+    "Pundi Business",
   ],
   applicationName: SITE_NAME,
   authors: [{ name: "Dendy Juliano Juanda", url: "https://dendyjuliano.com" }],
@@ -46,12 +48,12 @@ export const metadata: Metadata = {
     locale: "id_ID",
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — Kelola Keuangan Keluarga`,
+    title: `${SITE_NAME} — Kelola Keuangan Pribadi & Bisnis`,
     description: SITE_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_NAME} — Kelola Keuangan Keluarga`,
+    title: `${SITE_NAME} — Kelola Keuangan Pribadi & Bisnis`,
     description: SITE_DESCRIPTION,
   },
 };

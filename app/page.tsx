@@ -18,6 +18,12 @@ import {
   Target,
   TrendingUp,
   Moon,
+  Briefcase,
+  BookOpen,
+  ScrollText,
+  FileBarChart,
+  Undo2,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GradientBlobs } from "@/components/gradient-blobs";
@@ -88,6 +94,138 @@ const SCREENSHOTS = [
   { label: "Reports & Grafik", src: "/report.jpeg" },
   { label: "Target Tabungan", src: "/target.jpeg" },
 ];
+
+const BUSINESS_FEATURES = [
+  {
+    icon: BookOpen,
+    title: "Chart of Accounts Fleksibel",
+    description:
+      "Akun disesuaikan per industri usahamu — bukan template kaku, bisa tambah atau nonaktifkan akun kapan saja.",
+  },
+  {
+    icon: ScrollText,
+    title: "Jurnal Umum Otomatis",
+    description:
+      "Pilih jenis transaksi (Penjualan, Bayar Beban, dst), sistem yang hitung debit/kredit-nya — tidak perlu paham istilah akuntansi.",
+  },
+  {
+    icon: FileBarChart,
+    title: "Laporan Laba Rugi Instan",
+    description:
+      "Laba Kotor, Laba Usaha, sampai Laba Bersih terhitung otomatis dari transaksi yang sudah dicatat, kapan saja dibutuhkan.",
+  },
+  {
+    icon: BarChart3,
+    title: "Chart & Insight",
+    description:
+      "Tren pendapatan vs beban bulanan dan komposisi beban tervisualisasi, bukan cuma angka mentah di tabel.",
+  },
+  {
+    icon: Users,
+    title: "Multi-Role Tim",
+    description:
+      "Undang akuntan atau staff dengan akses berbeda — Owner, Akuntan, Staff, sesuai tanggung jawab masing-masing.",
+  },
+  {
+    icon: Undo2,
+    title: "Audit Trail Aman",
+    description:
+      "Histori transaksi tidak bisa diedit sembarangan — koreksi lewat entry pembalik, jejak lama tetap utuh.",
+  },
+];
+
+const PRICING_PLANS = [
+  {
+    name: "Personal",
+    tagline: "Buat kelola keuangan pribadi atau keluarga",
+    price: "Gratis",
+    period: "selamanya",
+    accent: "emerald" as const,
+    highlighted: false,
+    features: [
+      "Pemasukan multi-sumber & alokasi otomatis",
+      "Pengeluaran harian & budget bulanan",
+      "Laporan & grafik tahunan",
+      "Target tabungan & piutang",
+      "Split bill & multi-anggota keluarga",
+      "Tanpa kartu kredit, tanpa batas waktu",
+    ],
+    cta: { label: "Daftar Gratis", href: "/register" },
+  },
+  {
+    name: "Business",
+    tagline: "Buat UMKM yang mau laporan keuangan rapi tanpa sewa akuntan",
+    price: "Rp99.000",
+    period: "/bulan per perusahaan",
+    badge: "Trial 14 hari gratis",
+    accent: "slate" as const,
+    highlighted: true,
+    features: [
+      "Chart of Accounts + Jurnal Umum",
+      "Laporan Laba Rugi otomatis",
+      "Chart tren & komposisi beban",
+      "Multi-role tim (Owner/Akuntan/Staff)",
+      "Panduan lengkap di dalam aplikasi",
+      "Trial 14 hari, bayar via transfer manual",
+    ],
+    cta: { label: "Coba Gratis 14 Hari", href: "/register" },
+  },
+];
+
+function BusinessMockup() {
+  const barRows = [
+    { label: "Pendapatan Operasional", width: 78, strong: false },
+    { label: "Beban Pokok Penjualan", width: 42, strong: false },
+    { label: "Laba Kotor", width: 60, strong: true },
+    { label: "Beban Operasional", width: 48, strong: false },
+    { label: "Laba Bersih", width: 66, strong: true },
+  ];
+  const chartBars = [42, 65, 50, 80, 60, 92, 74];
+
+  return (
+    <div className="overflow-hidden rounded-2xl border bg-card shadow-2xl shadow-slate-950/10">
+      <div className="flex items-center gap-1.5 border-b bg-muted/40 px-4 py-2.5">
+        <span className="size-2.5 rounded-full bg-red-400" />
+        <span className="size-2.5 rounded-full bg-amber-400" />
+        <span className="size-2.5 rounded-full bg-emerald-400" />
+        <span className="ml-3 text-xs font-medium text-muted-foreground">
+          Laporan Laba Rugi — pratinjau
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-8 bg-muted/10 p-6 sm:grid-cols-5 sm:p-8">
+        <div className="col-span-2 space-y-4">
+          {barRows.map((row) => (
+            <div key={row.label} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={`text-xs ${row.strong ? "font-semibold text-foreground" : "text-muted-foreground"}`}
+                >
+                  {row.label}
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800">
+                <div
+                  className={`h-2 rounded-full ${row.strong ? "bg-linear-to-r from-slate-700 to-slate-500" : "bg-slate-400 dark:bg-slate-600"}`}
+                  style={{ width: `${row.width}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="col-span-3 flex items-end gap-2.5 sm:pl-4">
+          {chartBars.map((h, i) => (
+            <div key={i} className="flex-1">
+              <div
+                className="rounded-t-md bg-linear-to-t from-slate-700 to-slate-400"
+                style={{ height: `${h}px` }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ScreenshotFrame({
   label,
@@ -160,6 +298,18 @@ export default function LandingPage() {
               >
                 Tampilan
               </a>
+              <a
+                href="#bisnis"
+                className="transition-colors hover:text-foreground"
+              >
+                Bisnis
+              </a>
+              <a
+                href="#harga"
+                className="transition-colors hover:text-foreground"
+              >
+                Harga
+              </a>
             </nav>
             <div className="flex items-center gap-1.5">
               <Button
@@ -186,12 +336,12 @@ export default function LandingPage() {
           <div className="relative mx-auto max-w-4xl text-center space-y-7">
             <div className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-4 py-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 shadow-sm backdrop-blur">
               <Sparkles className="size-3.5" />
-              Kelola keuangan keluarga jadi lebih mudah
+              Buat pribadi, keluarga, sampai bisnis
             </div>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05]">
               Kelola keuangan{" "}
               <span className="bg-linear-to-r from-emerald-500 to-teal-600 bg-clip-text text-transparent">
-                keluarga
+                kamu
               </span>
               ,
               <br className="hidden sm:block" />
@@ -199,8 +349,9 @@ export default function LandingPage() {
             </h1>
             <p className="mx-auto max-w-xl text-lg sm:text-xl text-muted-foreground">
               Pundi bantu kamu memantau pemasukan, alokasi, dan pengeluaran
-              harian dalam satu tempat — tidak perlu lagi rekap manual di
-              spreadsheet tiap akhir bulan.
+              harian dalam satu tempat — buat individu, keluarga, sampai
+              laporan keuangan usaha kecil — tanpa rekap manual di
+              spreadsheet lagi.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <Button
@@ -342,6 +493,169 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Pundi Business — dark slate section, deliberately distinct from
+          the emerald personal-finance theme so it reads as a separate
+          product tier, not just another feature of the free plan. */}
+      <section
+        id="bisnis"
+        className="relative overflow-hidden bg-linear-to-br from-slate-900 via-slate-950 to-black px-4 py-24 sm:px-8 text-white"
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute -top-24 right-0 size-96 rounded-full bg-slate-600/20 blur-3xl" />
+          <div className="absolute bottom-0 -left-24 size-72 rounded-full bg-slate-500/10 blur-3xl" />
+        </div>
+        <div className="relative mx-auto max-w-6xl space-y-16">
+          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
+            <div className="space-y-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-sm font-medium text-slate-300">
+                <Briefcase className="size-3.5" />
+                Baru: Pundi Business
+              </div>
+              <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">
+                Laporan keuangan usaha,
+                <br className="hidden sm:block" /> tanpa sewa akuntan
+              </h2>
+              <p className="text-lg text-slate-400">
+                Chart of Accounts, Jurnal Umum, sampai Laporan Laba Rugi —
+                dicatat sekali lewat transaksi harian, laporannya terhitung
+                otomatis kapan saja kamu butuh.
+              </p>
+              <div className="pt-2">
+                <Button
+                  asChild
+                  size="lg"
+                  className="rounded-full bg-white text-slate-900 hover:bg-white/90 px-8 shadow-lg"
+                >
+                  <Link href="/register">
+                    Coba Pundi Business
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+            <BusinessMockup />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {BUSINESS_FEATURES.map((f) => (
+              <div
+                key={f.title}
+                className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 space-y-4 transition-colors hover:bg-white/[0.06]"
+              >
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-slate-500/20 text-slate-300">
+                  <f.icon className="size-5" />
+                </div>
+                <h3 className="font-semibold text-lg">{f.title}</h3>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  {f.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="harga" className="px-4 py-24 sm:px-8 dark:bg-muted/60">
+        <div className="mx-auto max-w-5xl space-y-16">
+          <div className="mx-auto max-w-xl text-center space-y-3">
+            <p className="text-sm font-semibold uppercase tracking-widest text-emerald-600">
+              Harga
+            </p>
+            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">
+              Mulai gratis, upgrade kalau perlu
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Personal selamanya gratis. Business murah dulu, sengaja — biar
+              usaha kecil ikut ngerasain manfaatnya.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {PRICING_PLANS.map((plan) => (
+              <div
+                key={plan.name}
+                className={`relative rounded-3xl border p-8 space-y-6 ${
+                  plan.highlighted
+                    ? "border-slate-800 bg-linear-to-br from-slate-900 to-slate-950 text-white shadow-2xl shadow-slate-950/20 md:-my-4 md:py-12"
+                    : "bg-card"
+                }`}
+              >
+                {plan.badge && (
+                  <span className="absolute -top-3 left-8 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-md">
+                    {plan.badge}
+                  </span>
+                )}
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`flex size-9 items-center justify-center rounded-xl ${
+                      plan.accent === "emerald"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : plan.highlighted
+                          ? "bg-white/10 text-slate-200"
+                          : "bg-slate-500/15 text-slate-600 dark:text-slate-300"
+                    }`}
+                  >
+                    {plan.accent === "emerald" ? (
+                      <PiggyBank className="size-4" />
+                    ) : (
+                      <Briefcase className="size-4" />
+                    )}
+                  </div>
+                  <span className="font-semibold text-lg">{plan.name}</span>
+                </div>
+                <p
+                  className={`text-sm ${plan.highlighted ? "text-slate-400" : "text-muted-foreground"}`}
+                >
+                  {plan.tagline}
+                </p>
+                <div className="flex items-end gap-1.5">
+                  <span className="text-4xl font-bold tracking-tight">
+                    {plan.price}
+                  </span>
+                  <span
+                    className={`pb-1 text-sm ${plan.highlighted ? "text-slate-400" : "text-muted-foreground"}`}
+                  >
+                    {plan.period}
+                  </span>
+                </div>
+                <ul className="space-y-3">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2.5 text-sm">
+                      <Check
+                        className={`size-4 shrink-0 mt-0.5 ${
+                          plan.accent === "emerald"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : plan.highlighted
+                              ? "text-slate-300"
+                              : "text-slate-600 dark:text-slate-300"
+                        }`}
+                      />
+                      <span className={plan.highlighted ? "text-slate-200" : ""}>
+                        {feature}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  asChild
+                  size="lg"
+                  className={`w-full rounded-full ${
+                    plan.highlighted
+                      ? "bg-white text-slate-900 hover:bg-white/90"
+                      : "bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700"
+                  }`}
+                >
+                  <Link href={plan.cta.href}>{plan.cta.label}</Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="relative overflow-hidden bg-linear-to-br from-emerald-500 via-emerald-600 to-teal-700 px-4 py-24 sm:px-8 text-white">
         <GradientBlobs className="opacity-40" />
@@ -380,8 +694,8 @@ export default function LandingPage() {
                 <span className="text-lg font-semibold text-white">Pundi</span>
               </div>
               <p className="max-w-xs text-sm">
-                Kelola pemasukan, alokasi, dan pengeluaran harian keluarga dalam
-                satu tempat.
+                Kelola pemasukan, alokasi, dan pengeluaran harian — pribadi,
+                keluarga, sampai bisnis — dalam satu tempat.
               </p>
             </div>
             <div className="space-y-3">
@@ -409,6 +723,22 @@ export default function LandingPage() {
                     className="transition-colors hover:text-white"
                   >
                     Tampilan
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#bisnis"
+                    className="transition-colors hover:text-white"
+                  >
+                    Pundi Business
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#harga"
+                    className="transition-colors hover:text-white"
+                  >
+                    Harga
                   </a>
                 </li>
               </ul>

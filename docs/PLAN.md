@@ -3269,3 +3269,280 @@ sekali.
 - [x] tsc, eslint bersih; `pnpm build` sukses (`/receivables` +
       4 route API baru masuk daftar route); data uji (2 akun, 2
       family) dibersihkan
+
+## Fase 75 — Pundi Business MVP: Chart of Accounts, Jurnal Umum, Laporan Laba Rugi
+
+Pivot ke fitur berbayar B2B: bantu UMKM generate laporan keuangan tanpa
+sewa akuntan. Domain data TERPISAH TOTAL dari fitur personal Pundi yang
+sudah ada (tidak reuse `Family`/`Expense`/`MonthlyBudget`) — direuse cuma
+sesi Auth.js/User, UI kit, dan pipeline deploy. Beda dari semua fitur
+sebelumnya di app ini yang single-entry, modul ini pakai **double-entry
+bookkeeping** asli: Chart of Accounts + Jurnal Umum di mana tiap entry
+debit harus sama dengan kredit. User bisa jadi anggota banyak company
+sekaligus dengan role berbeda (owner/accountant/staff), beda dari
+`User.familyId` yang 1:1. Desain diinformasikan oleh scan 2 contoh
+laporan keuangan resmi OJK/IDX (AADI — General Industry, BBRI — Financial
+and Sharia Industry) yang menunjukkan taksonomi akun beda total per
+industri — konfirmasi Chart of Accounts harus fleksibel per company,
+bukan daftar akun universal hardcoded. Scope MVP sengaja sempit: cuma
+Laporan Laba Rugi bertingkat (Pendapatan Operasional − COGS → Laba Kotor
+− Beban Operasional → Laba Usaha + Pendapatan Non-Operasional − Beban
+Non-Operasional → Laba Bersih) — Neraca, Arus Kas, invoicing/AP-AR,
+rekonsiliasi bank, multi-currency, pajak, dan billing/Stripe di luar
+scope, didaftar eksplisit sebagai backlog fase depan.
+
+- [x] `models/business/Company.ts` (baru) — `name`, `legalName?`,
+      `industry?` (hint template CoA fase depan), `createdBy`,
+      `fiscalYearStartMonth` (default 1, dipakai default rentang laporan)
+- [x] `models/business/CompanyMember.ts` (baru) — `companyId`, `userId`,
+      `role` enum owner/accountant/staff, index unique
+      `{companyId,userId}` (satu role per user per company)
+- [x] `models/business/Account.ts` (baru, Chart of Accounts) — `code`
+      (unik per company), `name`, `type`
+      (asset/liability/equity/revenue/expense), `normalBalance`
+      (di-set sekali dari `type` saat create, immutable), `reportSection`
+      (cuma revenue/expense — drive pengelompokan Laba Rugi:
+      operating-revenue/cogs/operating-expense/non-operating-revenue/
+      non-operating-expense), `costBehavior?` (fixed/variable, tag
+      manajerial murni, TIDAK dipakai kalkulasi Laba Rugi resmi),
+      `parentId?` (hierarki, schema-ready tapi UI MVP flat),
+      `isActive`/`isSystemDefault`
+- [x] `models/business/JournalEntry.ts` (baru) — `date` (tanggal
+      transaksi bukan createdAt), `lines` (sub-schema `_id:false`:
+      accountId/debit/credit/memo, minimal 2 baris divalidasi di API),
+      `sourceType` (manual/reversal), `reversalOfEntryId?`,
+      `isReversed`. **Immutable**: TIDAK ADA route PATCH sama sekali —
+      koreksi lewat `POST .../[entryId]/reverse` yang bikin entry BARU
+      dengan debit/kredit ditukar &amp; flip `isReversed:true` di entry
+      asli, bukan edit in-place (jaga audit trail)
+- [x] `lib/business/seedChartOfAccounts.ts` (baru) — 18 akun starter
+      UMKM generik mencakup 5 type + 5 reportSection, dipanggil sinkron
+      langsung setelah `Company.create()` (bukan job/queue); company
+      admin bebas rename/nonaktifkan/tambah lewat halaman CoA
+- [x] `lib/business/access.ts` (baru) — `resolveCompanyAccess(userId,
+      companyId, {minRole})`, sibling `resolveAdminTargetUserId` di
+      `lib/session.ts` — SELALU query `CompanyMember` fresh tiap request
+      (beda dari familyId yang 1:1 &amp; disimpan di JWT), 404 (bukan
+      403) kalau requester bukan member sama sekali (anti-leak
+      keberadaan company), 403 kalau member tapi role kurang
+- [x] Route tree `/api/business/companies/...` — CRUD company, members
+      (invite by email, 404 kalau user belum terdaftar Pundi — TIDAK ada
+      alur invite-token/email), accounts (CRUD + saldo terhitung
+      on-the-fly dari aggregate `JournalEntry.lines`, bukan
+      cache/tersimpan), journal-entries (POST validasi lines≥2, tiap
+      akun aktif &amp; milik company ini, tiap baris cuma isi salah
+      satu sisi, total debit===kredit float-safe), `[entryId]/reverse`
+      (bikin entry pembalik), `reports/income-statement` (aggregate +
+      `$lookup` ke accounts by `reportSection`, subtotal dihitung di JS
+      biar gampang dibaca/diuji)
+- [x] `app/(business)/layout.tsx` + `components/business/business-shell.tsx`
+      (baru) — route group &amp; shell TERPISAH dari `AppShell`
+      (bukan nested di `app/(app)/...`), company switcher di top bar
+      (localStorage cuma buat default UX, otorisasi selalu re-derive
+      server-side dari companyId di URL), avatar menu sendiri dengan
+      "Kembali ke Pundi"
+- [x] Halaman: `business/onboarding` (bikin company pertama),
+      `[companyId]/dashboard` (snapshot Laba Bersih + 3 beban terbesar),
+      `[companyId]/accounts` (CoA dikelompokkan per type pakai
+      `Accordion`, inline edit/nonaktifkan/hapus), `[companyId]/
+      transactions/new` (**form simplified** — pilih jenis transaksi
+      dari template mis. "Penjualan Tunai"/"Bayar Beban Operasional",
+      debit/kredit mentah tersembunyi dari user non-akuntan; opsi
+      "Lainnya (Manual)" raw multi-baris cuma muncul buat role
+      accountant+), `[companyId]/journal-entries` (ledger + dialog
+      detail + tombol koreksi/reverse), `[companyId]/reports/
+      income-statement` (6 baris laporan + date-range picker + cetak),
+      `[companyId]/settings` (profil company + kelola member/role,
+      owner-only)
+- [x] `components/app-shell.tsx` — entry "Pundi Business" (icon
+      `Briefcase`) di avatar dropdown desktop &amp; mobile, dipisah
+      `DropdownMenuSeparator` sebelum "Keluar"
+- [x] Ketemu &amp; diperbaiki sebelum testing: `.next` cache basi dari
+      `pnpm build` sebelumnya bikin `next dev` 404 di SEMUA route
+      (termasuk yang sudah lama ada) — `rm -rf .next` sebelum restart
+      dev server jadi langkah wajib baru selain restart proses
+- [x] Verifikasi fungsional lewat curl (3 akun uji — owner, staff,
+      outsider): company dibuat → 18 akun seed lengkap &amp;
+      `normalBalance` benar per type → owner undang staff → staff
+      `PATCH accounts` → 403 → outsider (bukan member) `GET
+      companies/[id]` → 404 (bukan 403, cek aturan anti-leak) → jurnal
+      tidak balance → 400 → jurnal Penjualan Tunai + HPP + Beban Sewa
+      balance → 201 → saldo akun (Kas 800.000, Persediaan -400.000,
+      Pendapatan Penjualan 1.000.000, dst) benar → Laporan Laba Rugi
+      (grossProfit 600.000, operatingProfit 400.000, netIncome 400.000)
+      cocok kalkulasi manual → reverse entry Beban Sewa → `isReversed`
+      ke-flip di entry asli, netIncome balik ke 600.000 → delete entry
+      test → hilang dari ledger → delete akun yang sudah dipakai jurnal
+      → 409; data uji (3 akun, 1 company, 18 akun, 4 jurnal) dibersihkan
+- [x] tsc, eslint bersih; `pnpm build` sukses (7 route API +
+      7 halaman `/business/*` baru masuk daftar route)
+- [x] Data dummy 55 transaksi (Jan-Jul 2026, skenario perusahaan
+      logistik) diisi via script Mongoose langsung ke akun real user
+      (`admin@pundi.test`, bukan akun uji throwaway) buat demo hasil UI
+      ke user — lalu dihapus lagi semua atas permintaan user, kembali ke
+      0 jurnal (18 akun seed tetap utuh, tidak disentuh)
+- [x] `app/(business)/business/[companyId]/panduan/page.tsx` (baru) —
+      menu bantuan di dalam Pundi Business, pola sama persis
+      `app/(app)/panduan/page.tsx` (Langkah-langkah + Fitur Tambahan +
+      FAQ + kontak WhatsApp), tapi konten spesifik ke alur double-entry:
+      saldo akun TIDAK diisi manual (dihitung dari transaksi), cara
+      Setor Modal Awal, cara koreksi jurnal (reversal, bukan edit),
+      beda COGS vs Beban Operasional, kenapa role Staff tidak bisa akses
+      "Lainnya (Manual)". Ditambahkan setelah user sempat bingung lihat
+      saldo Kas Rp0 di halaman Akun dan tidak tahu cara mengisinya
+- [x] `components/business/business-shell.tsx` — link "Panduan" (icon
+      `HelpCircle`) ditambah di sidebar desktop (area footer, sejajar
+      "Kembali ke Pundi") &amp; dropdown mobile
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/business/[companyId]/
+      panduan` masuk daftar route)
+
+## Fase 76 — Chart Report di Laporan Laba Rugi (Tren Bulanan + Komposisi Beban)
+
+User minta fitur chart di laporan keuangan Pundi Business ("saya rasa perlu
+ada fitur report seperti chart gitu, semua perusahaan suka kalo ada yang
+seperti itu"). Disepakati 2 chart, ditaruh di halaman Laporan Laba Rugi
+yang sudah ada (bukan halaman baru), pakai `recharts` (sudah dependency
+existing, dipakai juga di `app/(app)/reports/page.tsx`).
+
+- [x] Wajib jalanin skill `dataviz` sebelum nulis kode chart apa pun —
+      dipatuhi lewat prosedur 7 langkahnya (pilih bentuk → assign warna
+      per job → validasi palet via `validate_palette.js` → mark
+      spec/spacer → hover layer → aksesibilitas → render & cek visual)
+- [x] **Pivot dari rencana awal**: Chart Komposisi Beban awalnya
+      diusulkan sebagai pie/donut chart, tapi tabel "job → tipe" di
+      referensi skill dataviz eksplisit memetakan part-to-whole ke
+      **stacked/horizontal bar** (dan tidak pernah merekomendasikan
+      pie) — direklasifikasi ulang sebagai job "compare magnitude,
+      low→high" (sequential, satu hue), jadi dibangun sebagai
+      **horizontal ranked bar chart** bukan pie/donut
+- [x] Palet warna dipakai apa adanya dari `lib/chartColors.ts`
+      (`CATEGORICAL`/`CHROME`) — sudah palet tervalidasi yang sama
+      persis dipakai `app/(app)/reports/page.tsx`, tidak perlu
+      validasi ulang dari nol. Dicek lewat `validate_palette.js`:
+      pasangan biru (`#2a78d6`) + aqua (`#1baf7a`) PASS di lightness
+      band, chroma floor, & CVD separation (ΔE 73.6 deutan / 21.6
+      tritan) — tapi **WARN** kontras aqua-vs-surface-terang
+      (2.74:1, target 3:1). WARN kontras tidak boleh diabaikan begitu
+      saja → mitigasi wajib: `LabelList` nilai langsung di tiap bar
+      Beban (bukan cuma andalkan warna fill) + legend tetap ada
+- [x] `app/api/business/companies/[id]/reports/income-statement/monthly/route.ts`
+      (baru) — endpoint breakdown per bulan, pola aggregation sama
+      persis route `income-statement` utama (`$match` companyId+
+      rentang tanggal → `$unwind lines` → `$lookup accounts` → filter
+      `reportSection` ada) ditambah `$group` per tahun+bulan. Bulan
+      kosong (tanpa transaksi) tetap diisi 0 di response biar tren
+      tidak "melompat" di chart. Compute-on-read, tidak ada saldo
+      bulanan yang disimpan
+- [x] `app/(business)/business/[companyId]/reports/income-statement/page.tsx`
+      (diubah) — 2 chart baru pakai `recharts`:
+      1. **Tren Pendapatan vs Beban Bulanan** — grouped bar chart
+         (categorical: biru=Pendapatan, aqua=Beban, urutan hue fixed
+         bukan merah=beban/hijau=pendapatan yang intuitif, sesuai
+         aturan skill "jangan campur identity channel dengan status
+         good/bad"), data dari endpoint monthly baru
+      2. **Komposisi Beban** — horizontal ranked bar chart (sequential
+         satu hue biru), data dari `byAccount` yang sudah ada di
+         response `income-statement` (field ini sebelumnya di-return
+         API tapi belum dipakai UI) — difilter section
+         cogs/operating-expense/non-operating-expense, di-rank
+         terbesar→terkecil, ekor di luar 8 teratas dilipat ke
+         "Lainnya"
+      3. Kedua chart dikasih class `no-print` (konsisten sama filter
+         tanggal & tombol Cetak yang sudah ada) — laporan cetak PDF
+         tetap fokus ke angka, bukan chart
+- [x] tsc, eslint bersih (cuma warning `exhaustive-deps` yang sudah
+      lazim ditoleransi di halaman lain repo ini, bukan error);
+      `pnpm build` sukses (`/api/business/companies/[id]/reports/
+      income-statement/monthly` masuk daftar route)
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway): company
+      baru → 4 jurnal lintas 2 bulan (Jan: penjualan 1.000.000 + gaji
+      200.000; Feb: penjualan 1.500.000 + HPP 300.000) → endpoint
+      monthly balikin breakdown per bulan yang benar (Jan: revenue
+      1.000.000/expense 200.000/netIncome 800.000; Feb: revenue
+      1.500.000/expense 300.000/netIncome 1.200.000) → `byAccount` di
+      endpoint income-statement utama cocok (HPP 300.000, Pendapatan
+      Penjualan 2.500.000, Beban Gaji 200.000); data uji dibersihkan
+
+## Fase 77 — Langganan Berbayar Pundi Business (Rp99.000/bulan, Transfer Manual)
+
+User memutuskan Pundi Business jadi berbayar, Rp99.000/bulan per company —
+harga murah dulu buat divalidasi sebelum naik seiring Neraca/Arus Kas/pajak
+ditambah nanti. Belum mau integrasi payment gateway (Midtrans/Xendit,
+terlalu berat buat tahap ini), jadi alurnya manual: owner transfer ke
+rekening, klik "Saya sudah transfer", lalu user sendiri (bukan payment
+gateway) yang cek mutasi bank & approve/reject klaim lewat halaman admin
+baru yang cuma bisa diakses emailnya sendiri.
+
+- [x] **Keputusan desain kunci**: status langganan (`trial`/`active`/
+      `pending_verification`/`overdue`) TIDAK PERNAH disimpan sebagai
+      field — selalu dihitung dari `trialEndsAt`/`currentPeriodEnd`
+      (tanggal) + ada-tidaknya `SubscriptionPayment` berstatus `pending`
+      saat request masuk. Pola yang sama seperti saldo `Account` &
+      Laporan Laba Rugi (compute-on-read) — mencegah bug lupa "revert
+      status" waktu klaim ditolak
+- [x] `models/business/CompanySubscription.ts` (baru) — `companyId`
+      (unique), `trialEndsAt`, `currentPeriodEnd` (nullable)
+- [x] `models/business/SubscriptionPayment.ts` (baru) — log klaim
+      append-only (mirip semangat immutable `JournalEntry`): `amount`
+      (snapshot harga saat klaim, bukan reference harga sekarang),
+      `claimedBy/At`, `periodStart/End` (dihitung saat klaim, nyambung
+      dari periode berjalan/trial — bukan dari tanggal klaim, biar owner
+      yang bayar sebelum jatuh tempo tidak rugi sisa masa aktifnya),
+      `status` (pending/approved/rejected), `reviewedBy/At`, `note?`
+- [x] `lib/business/subscription.ts` (baru) — `MONTHLY_PRICE_IDR=99_000`,
+      `getSubscriptionStatus()`, `addOneMonthUTC()` (pola month-math sama
+      seperti endpoint `income-statement/monthly` Fase 76)
+- [x] `lib/business/platformAdmin.ts` (baru) — `isPlatformAdmin(email)`
+      cek terhadap env var baru `PLATFORM_ADMIN_EMAILS` (comma-separated,
+      pola sama `CRON_SECRET` yang sudah ada). **Bukan** `User.role:
+      "admin"` yang sudah ada — itu scoped per keluarga (family admin),
+      konsep beda total dari "approve pembayaran SEMUA company"
+- [x] `app/api/business/companies/route.ts` (diubah) — company baru
+      otomatis dapat `CompanySubscription` trial 14 hari
+- [x] `.../[id]/subscription/route.ts` (GET, baru) & `.../subscription/
+      claim/route.ts` (POST, baru, owner-only, 409 kalau sudah ada klaim
+      pending — guard satu klaim pending per company)
+- [x] `/api/platform-admin/subscriptions/route.ts` (GET list, baru) &
+      `.../[paymentId]/approve|reject/route.ts` (POST, baru) — gate
+      `isPlatformAdmin`, 403 (bukan 404, ini soal role global bukan
+      resource-exist) kalau bukan; approve set `CompanySubscription.
+      currentPeriodEnd = payment.periodEnd`, reject cuma ubah status
+      payment (company otomatis balik overdue lewat compute-on-read,
+      tanpa perlu revert manual)
+- [x] `.../settings/page.tsx` (diubah) — Card "Tagihan": badge status,
+      instruksi transfer (dari env `BUSINESS_BANK_*`, null-safe kalau
+      belum diisi), tombol "Saya sudah transfer" (owner only), alasan
+      penolakan kalau klaim terakhir ditolak
+- [x] `.../dashboard/page.tsx` (diubah) — banner amber "jatuh tempo"
+      (link ke Pengaturan) kalau overdue, banner biru netral kalau
+      pending_verification, pakai pola warning yang sudah ada di
+      `app/(app)/budget/page.tsx` (border-dashed amber + `AlertTriangle`)
+- [x] `app/(app)/platform-admin/subscriptions/page.tsx` (baru) — reuse
+      `AppShell`, tidak ditambah link nav di mana pun (cuma diakses
+      lewat URL langsung oleh pemilik akun), tampil "Tidak punya akses"
+      kalau API 403
+- [x] Env var baru di `.env.local`: `PLATFORM_ADMIN_EMAILS` (diisi email
+      user), `BUSINESS_BANK_NAME/ACCOUNT_NUMBER/ACCOUNT_HOLDER` (sengaja
+      dikosongkan — data rekening pribadi, user isi sendiri nanti)
+- [x] tsc, eslint bersih (cuma warning `exhaustive-deps` yang sudah lazim
+      ditoleransi di halaman lain repo ini); `pnpm build` sukses (7 route
+      baru: 2 company-scoped + 3 platform-admin + 1 halaman platform-admin
+      masuk daftar route)
+- [x] Verifikasi fungsional lewat curl (owner + staff + platform-admin
+      throwaway, `PLATFORM_ADMIN_EMAILS` ditambah sementara buat testing
+      lalu dikembalikan lagi): company baru → `trial` 14 hari → backdate
+      `trialEndsAt` → `overdue` → staff coba klaim → 403 → owner klaim →
+      `pending_verification`, klaim kedua → 409 → non-admin akses
+      endpoint platform-admin → 403 → platform admin approve →
+      `active`, `currentPeriodEnd` tepat +1 bulan dari `periodStart` →
+      alur reject di company kedua → status balik `overdue` otomatis +
+      `lastRejectedPayment.note` muncul; data uji & env var testing
+      dibersihkan/dikembalikan
+- [x] **Ditemukan & diperbaiki sebelum selesai**: company yang sudah ada
+      dari sebelum fitur ini (`admin@pundi.test`, dibuat waktu Fase 75)
+      tidak punya `CompanySubscription` sama sekali — kalau dibiarkan,
+      `getSubscriptionStatus` bakal langsung balikin `overdue` (default
+      fallback) dan dashboard-nya tiba-tiba nampilin peringatan jatuh
+      tempo padahal belum pernah ditawari langganan. Di-backfill lewat
+      script sekali pakai: kasih trial 14 hari baru buat semua company
+      existing yang belum punya `CompanySubscription`
