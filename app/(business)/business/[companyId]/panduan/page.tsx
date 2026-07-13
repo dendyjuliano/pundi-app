@@ -138,6 +138,11 @@ export default function BusinessPanduanPage() {
         "Itu penanda internal (fixed/variable cost) buat analisis manajemen di fitur lanjutan nanti — TIDAK mempengaruhi angka di Laporan Laba Rugi sama sekali. Boleh diabaikan kalau belum butuh.",
     },
     {
+      question: "Apa bedanya Neraca sama Laporan Laba Rugi?",
+      answer:
+        'Laporan Laba Rugi nunjukkin performa selama SATU PERIODE (mis. untung/rugi selama bulan Mei). Neraca nunjukkin kondisi keuangan di SATU TANGGAL (mis. per 31 Mei: perusahaan ini sekarang punya apa aja — Aset — dan berutang berapa — Utang — sehingga sisa buat pemilik berapa — Modal). Keduanya saling terhubung: laba/rugi yang dihasilkan tiap periode ikut menambah/mengurangi Modal di Neraca (baris "Laba Ditahan").',
+    },
+    {
       question: "Siapa saja yang bisa lihat data perusahaan ini?",
       answer:
         "Cuma anggota yang sudah diundang lewat halaman Pengaturan (owner/akuntan/staff). Ini domain data yang benar-benar terpisah dari akun personal Pundi — perusahaan lain atau keluarga Pundi-mu tidak bisa mengaksesnya sama sekali.",

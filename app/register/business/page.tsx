@@ -5,46 +5,45 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  PiggyBank,
-  Wallet,
-  Receipt,
-  BarChart3,
+  Briefcase,
+  BookOpen,
+  ScrollText,
+  FileBarChart,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/password-input";
-import { GradientBlobs } from "@/components/gradient-blobs";
 
 const BENEFITS = [
   {
-    icon: Wallet,
-    title: "Atur alokasi tiap bulan",
+    icon: BookOpen,
+    title: "Chart of Accounts otomatis",
     description:
-      "Bagi penghasilan ke pos-pos tetap (transfer, sewa, investasi) dan jatah makan harian secara otomatis.",
+      "18 akun standar (Kas, Bank, Pendapatan, Beban, dll) langsung dibuat begitu perusahaan pertamamu jadi.",
   },
   {
-    icon: Receipt,
-    title: "Catat pengeluaran harian",
+    icon: ScrollText,
+    title: "Jurnal Umum tanpa istilah akuntansi",
     description:
-      "Input cepat tiap transaksi, langsung dibandingkan dengan target harian, mingguan, dan bulanan.",
+      "Pilih jenis transaksi harian, sistem yang hitung debit/kredit-nya secara otomatis.",
   },
   {
-    icon: BarChart3,
-    title: "Laporan & grafik otomatis",
+    icon: FileBarChart,
+    title: "Laporan Laba Rugi instan",
     description:
-      "Lihat tren pengeluaran, alokasi penghasilan, dan pola makan sepanjang tahun tanpa hitung manual.",
+      "Laba Kotor sampai Laba Bersih terhitung otomatis dari transaksi yang sudah dicatat — tanpa sewa akuntan.",
   },
   {
     icon: Users,
-    title: "Tambah anggota lain",
+    title: "Undang tim",
     description:
-      "Undang pasangan atau anggota lain untuk kelola datanya masing-masing — cuma kamu yang bisa lihat semuanya.",
+      "Tambah akuntan atau staff dengan akses berbeda — Owner, Akuntan, Staff, sesuai tanggung jawabnya.",
   },
 ];
 
-export default function RegisterPage() {
+export default function RegisterBusinessPage() {
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -84,40 +83,49 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/onboarding");
+    // Beda dari /register (personal) yang redirect ke /onboarding — di sini
+    // langsung ke pembuatan company, bukan setup budget personal.
+    router.push("/business/onboarding");
     router.refresh();
   }
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left panel — branding & benefits (desktop only) */}
-      <div className="relative hidden lg:flex flex-col justify-center gap-10 overflow-hidden bg-linear-to-br from-emerald-500 via-emerald-600 to-teal-700 px-14 py-16 text-white">
-        <GradientBlobs className="opacity-40" />
+      {/* Left panel — branding & benefits (desktop only), slate theme
+          biar kebedaannya dari signup personal (emerald) langsung kerasa */}
+      <div className="relative hidden lg:flex flex-col justify-center gap-10 overflow-hidden bg-linear-to-br from-slate-800 via-slate-900 to-black px-14 py-16 text-white">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute -top-24 -left-20 size-72 rounded-full bg-slate-600/20 blur-3xl" />
+          <div className="absolute top-1/3 -right-24 size-80 rounded-full bg-slate-500/15 blur-3xl" />
+        </div>
         <div className="relative space-y-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-white/15">
-              <PiggyBank className="size-5" />
+            <div className="flex size-9 items-center justify-center rounded-xl bg-white/10">
+              <Briefcase className="size-5" />
             </div>
-            <span className="text-lg font-semibold">Pundi</span>
+            <span className="text-lg font-semibold">Pundi Business</span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight max-w-md">
-            Kelola keuangan lebih rapi, mulai hari ini
+            Laporan keuangan usaha, tanpa sewa akuntan
           </h1>
-          <p className="text-sm text-emerald-50/85 max-w-sm">
-            Satu akun untuk memantau pemasukan, alokasi, dan pengeluaran —
-            biar tidak perlu lagi rekap manual tiap bulan.
+          <p className="text-sm text-slate-400 max-w-sm">
+            Catat transaksi harian, laporan keuangannya terhitung otomatis —
+            trial 14 hari gratis, lanjut Rp99.000/bulan.
           </p>
         </div>
 
         <ul className="relative space-y-5 max-w-md">
           {BENEFITS.map((b) => (
             <li key={b.title} className="flex items-start gap-3.5">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
                 <b.icon className="size-4.5" />
               </div>
               <div>
                 <p className="text-sm font-semibold">{b.title}</p>
-                <p className="text-sm text-emerald-50/80 mt-0.5">
+                <p className="text-sm text-slate-400 mt-0.5">
                   {b.description}
                 </p>
               </div>
@@ -128,22 +136,19 @@ export default function RegisterPage() {
 
       {/* Right panel — form */}
       <div className="relative flex items-center justify-center px-4 py-12 overflow-hidden">
-        <div className="lg:hidden absolute inset-0 -z-10">
-          <GradientBlobs />
-        </div>
         <div className="w-full max-w-sm space-y-6">
           <div className="flex flex-col items-center gap-3 text-center lg:hidden">
-            <div className="flex size-14 items-center justify-center rounded-3xl bg-linear-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
-              <PiggyBank className="size-7 text-white" />
+            <div className="flex size-14 items-center justify-center rounded-3xl bg-linear-to-br from-slate-700 to-slate-900 shadow-lg shadow-slate-900/30">
+              <Briefcase className="size-7 text-white" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Pundi</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Pundi Business</h1>
           </div>
 
           <div className="space-y-1.5 text-center lg:text-left">
-            <h2 className="text-2xl font-bold tracking-tight">Daftar Akun</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Daftar Akun Bisnis</h2>
             <p className="text-sm text-muted-foreground">
-              Kamu jadi admin dari akunmu sendiri — bisa tambah anggota lain
-              nanti, dan cuma kamu yang bisa lihat semua datanya.
+              Setelah daftar, kamu langsung diarahkan buat bikin perusahaan
+              pertamamu — trial 14 hari, tanpa kartu kredit.
             </p>
           </div>
 
@@ -181,8 +186,13 @@ export default function RegisterPage() {
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <Button type="submit" disabled={pending} size="lg" className="w-full">
-              {pending ? "Memproses..." : "Daftar"}
+            <Button
+              type="submit"
+              disabled={pending}
+              size="lg"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white"
+            >
+              {pending ? "Memproses..." : "Daftar & Buat Perusahaan"}
             </Button>
           </form>
 
@@ -193,9 +203,9 @@ export default function RegisterPage() {
             </Link>
           </p>
           <p className="text-center text-sm text-muted-foreground">
-            Daftar buat usaha/UMKM?{" "}
-            <Link href="/register/business" className="font-medium text-foreground underline">
-              Coba Pundi Business
+            Bukan buat bisnis?{" "}
+            <Link href="/register" className="font-medium text-foreground underline">
+              Daftar akun personal
             </Link>
           </p>
         </div>

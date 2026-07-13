@@ -122,9 +122,9 @@ function AccountRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b last:border-b-0">
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="text-xs font-mono text-muted-foreground w-12 shrink-0">
+    <div className="flex flex-col gap-2 px-4 py-3 border-b last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-2 min-w-0">
+        <span className="text-xs font-mono text-muted-foreground shrink-0">
           {account.code}
         </span>
         {editing ? (
@@ -136,7 +136,7 @@ function AccountRow({
               if (e.key === "Enter") save();
               if (e.key === "Escape") setEditing(false);
             }}
-            className="h-8 w-48"
+            className="h-8 w-full max-w-56"
           />
         ) : (
           <span className={account.isActive ? "" : "text-muted-foreground line-through"}>
@@ -144,48 +144,50 @@ function AccountRow({
           </span>
         )}
         {account.isSystemDefault && (
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-[10px] shrink-0">
             bawaan
           </Badge>
         )}
         {account.costBehavior && (
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-[10px] shrink-0">
             {account.costBehavior === "fixed" ? "tetap" : "variabel"}
           </Badge>
         )}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center justify-between gap-2 sm:justify-end sm:shrink-0">
         <span className="text-sm font-medium tabular-nums">
           {formatRupiah(account.balance)}
         </span>
-        {editing ? (
-          <>
-            <Button variant="ghost" size="icon" className="size-7 text-emerald-600" onClick={save}>
-              <Check className="size-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="size-7" onClick={() => setEditing(false)}>
-              <X className="size-4" />
-            </Button>
-          </>
-        ) : (
-          <>
-            <Switch checked={account.isActive} onCheckedChange={toggleActive} />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 text-muted-foreground hover:text-foreground"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil className="size-4" />
-            </Button>
-            <ConfirmDeleteButton
-              title={`Hapus akun "${account.name}"?`}
-              description="Cuma bisa dihapus kalau belum pernah dipakai di jurnal — kalau sudah pernah, nonaktifkan saja."
-              onConfirm={handleDelete}
-              className="size-7"
-            />
-          </>
-        )}
+        <div className="flex items-center gap-1">
+          {editing ? (
+            <>
+              <Button variant="ghost" size="icon" className="size-7 text-emerald-600" onClick={save}>
+                <Check className="size-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="size-7" onClick={() => setEditing(false)}>
+                <X className="size-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Switch checked={account.isActive} onCheckedChange={toggleActive} />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil className="size-4" />
+              </Button>
+              <ConfirmDeleteButton
+                title={`Hapus akun "${account.name}"?`}
+                description="Cuma bisa dihapus kalau belum pernah dipakai di jurnal — kalau sudah pernah, nonaktifkan saja."
+                onConfirm={handleDelete}
+                className="size-7"
+              />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -287,7 +289,7 @@ export default function ChartOfAccountsPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCreate} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 placeholder="Kode (mis. 6500)"
                 value={code}

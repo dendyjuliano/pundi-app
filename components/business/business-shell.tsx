@@ -11,12 +11,15 @@ import {
   PlusCircle,
   ScrollText,
   FileBarChart,
+  Scale,
   Settings,
   ChevronDown,
   ArrowLeft,
   LogOut,
   Plus,
   HelpCircle,
+  MoreHorizontal,
+  MessageCircle,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -28,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { WHATSAPP_URL } from "@/lib/contact";
 
 type Company = { _id: string; name: string; role: "owner" | "accountant" | "staff" };
 
@@ -40,9 +44,39 @@ function navItems(companyId: string): NavItem[] {
     { href: `/business/${companyId}/transactions/new`, label: "Transaksi Baru", icon: PlusCircle },
     { href: `/business/${companyId}/journal-entries`, label: "Jurnal", icon: ScrollText },
     { href: `/business/${companyId}/reports/income-statement`, label: "Laporan Laba Rugi", icon: FileBarChart },
+    { href: `/business/${companyId}/reports/balance-sheet`, label: "Neraca", icon: Scale },
     { href: `/business/${companyId}/settings`, label: "Pengaturan", icon: Settings },
   ];
 }
+
+// Bottom tab mobile dibatasi 4 tujuan harian + 1 slot "More" — pola sama
+// persis components/app-shell.tsx (personal): Akun/Neraca/Pengaturan
+// dipindah ke halaman /more karena lebih jarang dicek dibanding
+// Dashboard/Transaksi Baru/Jurnal/Laporan Laba Rugi. Label dipersingkat
+// jadi 1 kata (beda dari label lengkap di sidebar desktop) — label
+// panjang (mis. "Laporan Laba Rugi") kebungkus 2 baris di slot sempit
+// ini dan bikin baris ikon jadi tidak sejajar.
+const MOBILE_TABS: { suffix: string; label: string }[] = [
+  { suffix: "/dashboard", label: "Dashboard" },
+  { suffix: "/transactions/new", label: "Catat" },
+  { suffix: "/journal-entries", label: "Jurnal" },
+  { suffix: "/reports/income-statement", label: "Laba Rugi" },
+];
+
+// Rute yang bikin tab "More" nyala aktif — termasuk /more sendiri plus
+// setiap halaman yang cuma bisa dijangkau lewat sana di mobile.
+const MORE_MENU_SUFFIXES = ["/more", "/accounts", "/reports/balance-sheet", "/settings", "/panduan"];
+
+// Judul header mobile pas lagi di salah satu halaman yang cuma bisa
+// dijangkau lewat tab "More" — dipetakan ke suffix path (bukan full path,
+// companyId di tengah URL beda-beda) buat nampilin tombol back + judul
+// menggantikan logo Pundi Business biasa.
+const SECONDARY_PAGE_TITLES: { suffix: string; label: string }[] = [
+  { suffix: "/accounts", label: "Akun" },
+  { suffix: "/reports/balance-sheet", label: "Neraca" },
+  { suffix: "/settings", label: "Pengaturan" },
+  { suffix: "/panduan", label: "Panduan" },
+];
 
 function initials(name: string) {
   return name
@@ -83,6 +117,14 @@ export function BusinessShell({
 
   const currentCompany = companies?.find((c) => c._id === companyId);
   const items = companyId ? navItems(companyId) : [];
+  const mobileTabItems = MOBILE_TABS.map((tab) => {
+    const item = items.find((i) => i.href.endsWith(tab.suffix));
+    return item ? { href: item.href, label: tab.label, icon: item.icon } : null;
+  }).filter((item): item is NonNullable<typeof item> => item !== null);
+  const moreActive = MORE_MENU_SUFFIXES.some((suffix) => pathname.endsWith(suffix));
+  const secondaryPageTitle = SECONDARY_PAGE_TITLES.find((s) =>
+    pathname.endsWith(s.suffix)
+  )?.label;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -193,14 +235,27 @@ export function BusinessShell({
         </div>
       </aside>
 
-      {/* Top bar mobile — desktop-first buat MVP, nav lengkap via dropdown */}
+      {/* Top bar mobile — tombol back + judul pas di halaman yang cuma
+          dijangkau lewat tab "More" (pola sama persis components/
+          app-shell.tsx personal), logo Pundi Business biasa di halaman
+          lain */}
       <header className="md:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 border-b bg-background/95 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-linear-to-br from-slate-700 to-slate-900">
-            <Briefcase className="size-3.5 text-white" />
+        {secondaryPageTitle && companyId ? (
+          <Link
+            href={`/business/${companyId}/more`}
+            className="-ml-1 flex items-center gap-2 rounded-lg px-1 py-1 text-foreground"
+          >
+            <ArrowLeft className="size-5" />
+            <span className="font-semibold">{secondaryPageTitle}</span>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-linear-to-br from-slate-700 to-slate-900">
+              <Briefcase className="size-3.5 text-white" />
+            </div>
+            <span className="font-semibold">Pundi Business</span>
           </div>
-          <span className="font-semibold">Pundi Business</span>
-        </div>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger>
             <Avatar className="size-8">
@@ -210,17 +265,10 @@ export function BusinessShell({
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            {items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <DropdownMenuItem key={item.href} asChild>
-                  <Link href={item.href}>
-                    <Icon className="size-4" />
-                    {item.label}
-                  </Link>
-                </DropdownMenuItem>
-              );
-            })}
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-sm font-medium">{user.name}</p>
+              <p className="text-xs text-muted-foreground">{user.email}</p>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {companyId && (
               <DropdownMenuItem asChild>
@@ -230,6 +278,13 @@ export function BusinessShell({
                 </Link>
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem asChild>
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="size-4" />
+                Hubungi
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/dashboard">
                 <ArrowLeft className="size-4" />
@@ -247,9 +302,59 @@ export function BusinessShell({
         </DropdownMenu>
       </header>
 
-      <main className="md:pl-64">
+      <main className="md:pl-64 pb-24 md:pb-0">
         <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-8">{children}</div>
       </main>
+
+      {/* Bottom tab bar mobile — floating pill, pola & bahasa desain sama
+          persis components/app-shell.tsx personal (Fase 46/71) */}
+      {companyId && (
+        <nav className="md:hidden fixed bottom-3 inset-x-3 z-30 rounded-2xl border bg-background/95 backdrop-blur shadow-lg shadow-black/5">
+          <div className="grid grid-cols-5">
+            {mobileTabItems.map((item) => {
+              const active = pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium whitespace-nowrap transition-transform active:scale-95",
+                    active ? "text-slate-900 dark:text-white" : "text-muted-foreground"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex items-center justify-center rounded-full size-8 transition-colors",
+                      active && "bg-linear-to-br from-slate-700 to-slate-900 text-white shadow-sm"
+                    )}
+                  >
+                    <Icon className="size-4.5" />
+                  </span>
+                  {item.label}
+                </Link>
+              );
+            })}
+            <Link
+              href={`/business/${companyId}/more`}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium whitespace-nowrap transition-transform active:scale-95",
+                moreActive ? "text-slate-900 dark:text-white" : "text-muted-foreground"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex items-center justify-center rounded-full size-8 transition-colors",
+                  moreActive && "bg-linear-to-br from-slate-700 to-slate-900 text-white shadow-sm"
+                )}
+              >
+                <MoreHorizontal className="size-4.5" />
+              </span>
+              Lainnya
+            </Link>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

@@ -168,7 +168,7 @@ const PRICING_PLANS = [
       "Panduan lengkap di dalam aplikasi",
       "Trial 14 hari, bayar via transfer manual",
     ],
-    cta: { label: "Coba Gratis 14 Hari", href: "/register" },
+    cta: { label: "Coba Gratis 14 Hari", href: "/register/business" },
   },
 ];
 
@@ -529,7 +529,7 @@ export default function LandingPage() {
                   size="lg"
                   className="rounded-full bg-white text-slate-900 hover:bg-white/90 px-8 shadow-lg"
                 >
-                  <Link href="/register">
+                  <Link href="/register/business">
                     Coba Pundi Business
                     <ArrowRight className="size-4" />
                   </Link>

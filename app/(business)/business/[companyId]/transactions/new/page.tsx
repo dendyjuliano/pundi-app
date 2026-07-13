@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { id as idLocale } from "date-fns/locale";
 import { CalendarIcon, Plus, Trash2 } from "lucide-react";
@@ -67,14 +67,19 @@ function toISODate(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-export default function NewTransactionPage() {
+function NewTransactionContent() {
   const { companyId } = useParams<{ companyId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [template, setTemplate] = useState<TemplateKey>("penjualan-tunai");
   const [pickedAccountId, setPickedAccountId] = useState("");
+  // Akun Kas/Bank yang jadi sisi kas di tiap template — sebelumnya
+  // hardcode ke Kas doang, sekarang bisa dipilih karena banyak transaksi
+  // nyata (transfer bank, kartu) sebenarnya bukan tunai.
+  const [cashAccountId, setCashAccountId] = useState("");
   const [amount, setAmount] = useState(0);
   const [description, setDescription] = useState("");
   const [date, setDate] = useState<Date>(new Date());
@@ -94,12 +99,37 @@ export default function NewTransactionPage() {
         fetch(`/api/business/companies/${companyId}/accounts?activeOnly=true`),
         fetch(`/api/business/companies/${companyId}`),
       ]);
-      if (accountsRes.ok) setAccounts(await accountsRes.json());
+      if (accountsRes.ok) {
+        const accountList: Account[] = await accountsRes.json();
+        setAccounts(accountList);
+        const kas = findAccount(accountList, "kas");
+        setCashAccountId(kas?._id ?? "");
+      }
       if (companyRes.ok) setRole((await companyRes.json()).role);
     })();
   }, [companyId]);
 
-  const kas = useMemo(() => accounts && findAccount(accounts, "kas"), [accounts]);
+  // Dipicu dari link notifikasi push "beban berulang jatuh tempo"
+  // (?confirmRecurring=<id>) — ambil detail item lalu prefill form
+  // template "Bayar Beban Operasional", USER tetap yang review & submit
+  // manual (bukan auto-post), sama filosofi pengingat berulang personal.
+  const confirmRecurringId = searchParams.get("confirmRecurring");
+  useEffect(() => {
+    if (!confirmRecurringId || !accounts) return;
+    (async () => {
+      const res = await fetch(
+        `/api/business/companies/${companyId}/recurring-expenses/${confirmRecurringId}`
+      );
+      if (!res.ok) return;
+      const item = await res.json();
+      setTemplate("bayar-beban");
+      setPickedAccountId(item.accountId);
+      setCashAccountId(item.cashAccountId);
+      setAmount(item.amount);
+      setDescription(item.name);
+    })();
+  }, [confirmRecurringId, accounts, companyId]);
+
   const piutang = useMemo(
     () => accounts && findAccount(accounts, "piutang usaha"),
     [accounts]
@@ -113,6 +143,16 @@ export default function NewTransactionPage() {
     [accounts]
   );
   const prive = useMemo(() => accounts && findAccount(accounts, "prive"), [accounts]);
+
+  const cashCandidates = useMemo(
+    () =>
+      accounts?.filter(
+        (a) =>
+          a.type === "asset" &&
+          ["kas", "bank"].some((n) => a.name.toLowerCase().includes(n))
+      ) ?? [],
+    [accounts]
+  );
 
   const pickerAccounts = useMemo(() => {
     if (!accounts) return [];
@@ -134,50 +174,54 @@ export default function NewTransactionPage() {
       toast.error("Nominal harus lebih dari 0");
       return;
     }
+    if (!cashAccountId) {
+      toast.error("Pilih akun Kas/Bank");
+      return;
+    }
 
     let lines: { accountId: string; debit?: number; credit?: number }[] = [];
     let defaultDescription = "";
 
     if (template === "penjualan-tunai") {
-      if (!kas || !pickedAccountId) return toast.error("Pilih akun pendapatan");
+      if (!pickedAccountId) return toast.error("Pilih akun pendapatan");
       lines = [
-        { accountId: kas._id, debit: amount },
+        { accountId: cashAccountId, debit: amount },
         { accountId: pickedAccountId, credit: amount },
       ];
       defaultDescription = "Penjualan tunai";
     } else if (template === "terima-piutang") {
-      if (!kas || !piutang) return toast.error("Akun Kas/Piutang Usaha tidak ditemukan");
+      if (!piutang) return toast.error("Akun Piutang Usaha tidak ditemukan");
       lines = [
-        { accountId: kas._id, debit: amount },
+        { accountId: cashAccountId, debit: amount },
         { accountId: piutang._id, credit: amount },
       ];
       defaultDescription = "Terima pembayaran piutang";
     } else if (template === "beli-persediaan") {
-      if (!kas || !persediaan) return toast.error("Akun Kas/Persediaan tidak ditemukan");
+      if (!persediaan) return toast.error("Akun Persediaan tidak ditemukan");
       lines = [
         { accountId: persediaan._id, debit: amount },
-        { accountId: kas._id, credit: amount },
+        { accountId: cashAccountId, credit: amount },
       ];
       defaultDescription = "Beli persediaan tunai";
     } else if (template === "bayar-beban") {
-      if (!kas || !pickedAccountId) return toast.error("Pilih akun beban");
+      if (!pickedAccountId) return toast.error("Pilih akun beban");
       lines = [
         { accountId: pickedAccountId, debit: amount },
-        { accountId: kas._id, credit: amount },
+        { accountId: cashAccountId, credit: amount },
       ];
       defaultDescription = "Bayar beban operasional";
     } else if (template === "setor-modal") {
-      if (!kas || !modal) return toast.error("Akun Kas/Modal Pemilik tidak ditemukan");
+      if (!modal) return toast.error("Akun Modal Pemilik tidak ditemukan");
       lines = [
-        { accountId: kas._id, debit: amount },
+        { accountId: cashAccountId, debit: amount },
         { accountId: modal._id, credit: amount },
       ];
       defaultDescription = "Setor modal";
     } else if (template === "prive") {
-      if (!kas || !prive) return toast.error("Akun Kas/Prive tidak ditemukan");
+      if (!prive) return toast.error("Akun Prive tidak ditemukan");
       lines = [
         { accountId: prive._id, debit: amount },
-        { accountId: kas._id, credit: amount },
+        { accountId: cashAccountId, credit: amount },
       ];
       defaultDescription = "Prive / penarikan pemilik";
     }
@@ -285,6 +329,18 @@ export default function NewTransactionPage() {
                   </SelectContent>
                 </Select>
               )}
+              <Select value={cashAccountId} onValueChange={setCashAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih akun Kas/Bank" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cashCandidates.map((a) => (
+                    <SelectItem key={a._id} value={a._id}>
+                      {a.code} · {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <CurrencyInput value={amount} onValueChange={setAmount} placeholder="Nominal" />
               <Input
                 placeholder="Keterangan (opsional)"
@@ -409,5 +465,20 @@ export default function NewTransactionPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function NewTransactionPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      }
+    >
+      <NewTransactionContent />
+    </Suspense>
   );
 }

@@ -3546,3 +3546,359 @@ baru yang cuma bisa diakses emailnya sendiri.
       tempo padahal belum pernah ditawari langganan. Di-backfill lewat
       script sekali pakai: kasih trial 14 hari baru buat semua company
       existing yang belum punya `CompanySubscription`
+
+## Fase 78 — Landing Page: Positioning Umum + Pendaftaran Business Terpisah
+
+Dua permintaan berurutan dari user: (1) landing page perlu di-refresh biar
+tidak "keluarga"-sentris lagi (sekarang ada Pundi Business juga), dan (2)
+alur daftar buat business perlu dipisah dari personal — klik "Coba Pundi
+Business" idealnya langsung kasih konteks bisnis + linear ke pembuatan
+company, bukan nyasar ke onboarding budget personal.
+
+- [x] **Refresh copy landing page & metadata** — ganti framing
+      "Kelola Keuangan Keluarga" jadi "Kelola Keuangan Pribadi & Bisnis" di
+      SEMUA tempat yang nge-drive SEO/share preview, bukan cuma hero:
+      `lib/site.ts` (`SITE_DESCRIPTION`, dipakai `layout.tsx` DAN
+      `manifest.ts`), `app/layout.tsx` (title/openGraph/twitter/keywords),
+      `app/manifest.ts` (nama PWA), `app/login/layout.tsx`,
+      `app/register/layout.tsx`. Hero h1 diganti dari "Kelola keuangan
+      **keluarga**" jadi "Kelola keuangan **kamu**" + subhead sebut
+      eksplisit individu/keluarga/laporan bisnis. Copy plan "Personal"
+      yang memang menjelaskan fitur keluarga/multi-anggota SENGAJA
+      dibiarkan — itu akurat buat plan itu spesifik, bukan klaim produk
+      secara umum
+- [x] Section baru "Pundi Business" (`#bisnis`) di landing page — dark
+      slate theme (beda sengaja dari emerald personal, biar kebedaan
+      tier kerasa), 6 feature card, dan `BusinessMockup` — panel abstrak
+      dibuat dari CSS bar (bukan `<Image>` screenshot beneran, karena
+      belum ada screenshot Pundi Business) buat preview "Laporan Laba
+      Rugi" tanpa broken image
+- [x] Section baru "Harga" (`#harga`) — 2 kartu perbandingan Personal
+      (Gratis) vs Business (Rp99.000/bulan, badge "Trial 14 hari gratis",
+      kartu di-highlight/elevated sebagai plan unggulan)
+- [x] **Ditemukan lewat pertanyaan user**: CTA "Coba Pundi Business" &
+      "Coba Gratis 14 Hari" tadinya masih mengarah ke `/register`
+      (halaman personal, redirect abis daftar ke `/onboarding` — setup
+      budget personal, bukan pembuatan company). Ini bukan cuma cosmetic
+      gap, alur signup buat business beneran nyasar
+- [x] `app/register/business/page.tsx` + `layout.tsx` (baru) — form
+      pendaftaran SAMA PERSIS secara fungsi (masih bikin `User` yang
+      sama, Pundi Business tidak punya sistem auth terpisah — Company
+      cuma layer tambahan di atas User yang sudah ada), tapi branding
+      slate + copy benefit bisnis (`BENEFITS` beda dari `/register`), dan
+      redirect abis signup ke `/business/onboarding` (bukan `/onboarding`)
+      — keputusan user: dua langkah (signup dulu, company creation di
+      halaman onboarding yang sudah ada), bukan digabung satu form,
+      biar konsisten sama pola `/register` -> `/onboarding` personal &
+      reuse halaman onboarding company apa adanya
+- [x] `proxy.ts` — `/register/business` ditambah ke `publicRoutes`
+      (exact-match array, bukan prefix) biar bisa diakses tanpa login;
+      user yang SUDAH login otomatis di-redirect ke `/dashboard` kalau
+      buka halaman ini (perilaku publicRoute yang sama kayak `/register`)
+- [x] Link silang buat discoverability: `/register` (personal) dapat
+      baris kecil "Daftar buat usaha/UMKM? Coba Pundi Business" ->
+      `/register/business`, dan sebaliknya `/register/business` punya
+      "Bukan buat bisnis? Daftar akun personal" -> `/register`
+- [x] CTA business di landing page (`#bisnis` section & kartu pricing
+      Business) diupdate dari `/register` ke `/register/business`; CTA
+      personal (nav, hero, final CTA, footer) TETAP ke `/register`
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/register/business`
+      masuk daftar route STATIC — tidak butuh server-side auth check
+      karena publicRoute)
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway): `GET
+      /register/business` tanpa auth -> 200; register+login -> `GET
+      /business/onboarding` (authed) -> 200 (bukan redirect ke /login,
+      konfirmasi company-creation page beneran reachable abis alur
+      business signup); `GET /register/business` DENGAN auth (tanpa
+      follow redirect) -> 307 ke `/dashboard` (konfirmasi publicRoute
+      gating jalan, tidak nyasar nampilin form daftar ke user yang
+      sudah login); data uji dibersihkan
+
+## Fase 79 — Onboarding Business Jadi 2 Langkah (Setor Modal Awal)
+
+Lanjutan langsung dari kebingungan user waktu awal pakai Pundi Business
+(saldo Kas Rp0, tidak tahu cara mengisinya — sudah dijawab lewat halaman
+Panduan di Fase 76). User minta onboarding-nya sendiri yang diperbaiki:
+begitu perusahaan baru dibuat, jangan langsung lempar ke Dashboard yang
+serba Rp0 — kasih kesempatan isi modal awal dulu. Didiskusikan berapa step
+yang pas: disepakati TETAP 2 langkah (bukan ditambah step lain kayak
+undang tim atau kustomisasi Chart of Accounts — keduanya lebih pas tetap
+di Pengaturan/Akun, bukan dipaksakan masuk onboarding), dan langkah kedua
+harus BISA DILEWATI (skippable), bukan wajib — beberapa owner belum tahu
+nominal modal pastinya waktu pertama kali onboarding.
+
+- [x] `app/(business)/business/onboarding/page.tsx` (diubah jadi 2-step
+      wizard, state `step: 1 | 2` lokal, bukan route terpisah):
+      - **Step 1** (sama seperti sebelumnya): form profil perusahaan →
+        `POST /api/business/companies` (bikin Company + seed 18 akun +
+        `CompanySubscription` trial). Bedanya, sekarang TIDAK langsung
+        redirect ke dashboard — lanjut fetch `GET .../accounts?
+        activeOnly=true` buat cari akun Kas (default terpilih) dan pindah
+        ke step 2
+      - **Step 2** (baru): Card "Setor Modal Awal" — `Select` akun
+        Kas/Bank + `CurrencyInput` nominal, tombol utama "Setor & Buka
+        Dashboard" (`POST .../journal-entries` dengan `lines` debit akun
+        terpilih / kredit "Modal Pemilik", pola identik template
+        `setor-modal` yang sudah ada di halaman Transaksi Baru — reuse
+        logic, bukan reimplementasi), tombol sekunder redup "Lewati dulu"
+        yang langsung `router.push` ke dashboard tanpa post apa pun
+- [x] tsc, eslint bersih (fix 1 error `react/no-unescaped-entities` buat
+      tanda kutip di judul step 2, dan 1 error tipe karena `CurrencyInput`
+      tidak punya prop `autoFocus`); `pnpm build` sukses
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway, mensimulasikan
+      urutan call yang persis dilakukan wizard): step 1 bikin company →
+      fetch accounts nemuin Kas/Bank/Modal Pemilik by name → step 2 post
+      journal entry Setor Modal Awal 5.000.000 → `GET accounts` konfirmasi
+      saldo Kas jadi 5.000.000 (bukan lagi 0) → `GET reports/
+      income-statement` konfirmasi tetap 0 di semua baris (benar secara
+      akuntansi — setoran modal itu transaksi ekuitas, bukan pendapatan,
+      jadi tidak boleh muncul di Laporan Laba Rugi); data uji dibersihkan
+
+## Fase 80 — Sumber Dana Kas/Bank di Template + Beban Berulang Business
+
+User kasih contoh data biaya nyata (DP Notaris, domain, email business
+bulanan, virtual office) yang mayoritas dibayar via Transfer Bank/Kartu,
+bukan tunai — dari situ ketemu gap nyata: SEMUA template simplified di
+Transaksi Baru hardcode akun Kas sebagai sisi kas-nya, tidak ada pilihan
+Bank. User juga minta fitur beban berulang buat Business (mirip personal),
+dan didiskusikan modul aset/amortisasi — disepakati BELUM perlu (alasan:
+Neraca buat nampilin book value belum ada, dan biaya di contoh user bukan
+aset yang wajar dikapitalisasi, expensing langsung sudah cukup & konsisten
+sama paradigma app ini).
+
+- [x] `transactions/new/page.tsx` (diubah) — tambah `Select` "Sumber/
+      Tujuan Dana" (akun `type:asset` yang namanya mengandung "kas"/
+      "bank") yang muncul di semua template kecuali "Lainnya (Manual)".
+      Semua referensi hardcoded `kas._id` di `handleTemplateSubmit`
+      diganti jadi state `cashAccountId` (default akun Kas kalau ada,
+      tapi bisa diganti ke Bank) — TIDAK ada perubahan API, murni soal
+      `accountId` mana yang dikirim di `lines`
+- [x] `models/business/RecurringBusinessExpense.ts` (baru) — beda dari
+      `RecurringExpense` personal (nama kategori bebas), di sini butuh
+      `accountId` (akun beban tujuan, mis. Beban Sewa) DAN `cashAccountId`
+      (akun Kas/Bank sumber dana) yang konkret, karena bakal jadi baris
+      jurnal beneran. Nama model Mongoose SENGAJA `"BusinessRecurringExpense"`
+      (bukan `"RecurringExpense"`) biar tidak bentrok di registry global
+      Mongoose sama model personal yang sudah ada di koneksi yang sama
+- [x] `/api/business/companies/[id]/recurring-expenses/route.ts` +
+      `[recurringId]/route.ts` (baru) — CRUD, pola identik
+      `/api/recurring-expenses` personal (validasi amount/dayOfMonth/
+      month-kalau-yearly sama persis), ditambah validasi `accountId`/
+      `cashAccountId` valid & aktif di company itu. GET boleh siapa saja
+      (buat prefill), POST/PATCH/DELETE minimal role `accountant`
+      (nyentuh akun GL, konsisten gating kelola Chart of Accounts)
+- [x] `app/api/cron/daily-reminder/route.ts` (diubah) — extend cron
+      harian yang SUDAH ADA (jadwal tunggal `0 5 * * *`, tidak perlu cron
+      baru), tambah query `BusinessRecurringExpense` due hari ini (logika
+      dayOfMonth/frequency/month sama persis pola personal), kirim push
+      ke SEMUA member company yang punya `PushSubscription` (bukan cuma
+      pembuat item) — karena staff pun bisa catat transaksi lewat
+      template "Bayar Beban Operasional". **Semi-otomatis, BUKAN
+      auto-post**: cuma notifikasi "tap buat catat", deep-link ke
+      `/business/[id]/transactions/new?confirmRecurring=<id>` — alasan
+      ini dipertahankan malah lebih penting buat Business karena jurnal
+      immutable (auto-post nominal salah/berubah bakal mencemari ledger
+      permanen, beda dari Expense personal yang masih bisa diedit)
+- [x] `transactions/new/page.tsx` (diubah lagi) — baca query param
+      `?confirmRecurring=<id>`, fetch detail item, prefill template
+      "Bayar Beban Operasional" (akun beban, akun Kas/Bank, nominal,
+      keterangan) — USER tetap review & submit manual. Dibungkus
+      `<Suspense>` (component dipecah jadi `NewTransactionContent` +
+      wrapper `NewTransactionPage`) karena `useSearchParams()` next.js
+      wajib ada suspense boundary, pola identik dashboard personal
+- [x] Card baru "Beban Berulang" di `.../settings/page.tsx` (diubah,
+      bukan halaman/nav item baru — pola sama Card "Tagihan" yang sudah
+      ada) — list item (nama, nominal, akun beban → akun sumber dana,
+      jadwal, toggle aktif/nonaktif, delete) + form tambah (Select akun
+      beban dari akun `type:expense`, Select akun Kas/Bank, nominal,
+      jadwal). Field baru `canManage` (owner/accountant) di halaman ini
+      — staff cuma lihat read-only, sebelumnya cuma ada `isOwner`
+- [x] tsc, eslint bersih (cuma warning `exhaustive-deps` yang sudah lazim
+      ditoleransi); `pnpm build` sukses (2 route API baru masuk daftar)
+- [x] Verifikasi fungsional lewat curl (owner + staff throwaway):
+      - Post jurnal "Bayar Beban Operasional" pilih Bank (bukan Kas) buat
+        Virtual Office 2.220.000 → `GET accounts` konfirmasi saldo BANK
+        yang berkurang (-2.220.000), Kas tetap 0 (regression check fix
+        sumber dana)
+      - POST recurring-expenses sebagai staff → 403; sebagai owner
+        (dayOfMonth = tanggal WIB hari ini) → 201; GET list (staff) →
+        muncul; GET satu item → field `accountId`/`cashAccountId` lengkap
+      - Hit `/api/cron/daily-reminder` → `businessRecurringDue: 1`
+        (query/counting logic kebukti jalan; push delivery sendiri tidak
+        bisa diverifikasi tanpa subscription asli)
+      - PATCH sebagai staff → 403; PATCH `active:false` sebagai owner →
+        200 → cron lagi → `businessRecurringDue: 0` (item nonaktif tidak
+        lagi due) → DELETE → GET list → kosong
+      - Data uji (2 akun, 1 company, 1 recurring expense, 1 jurnal)
+        dibersihkan
+
+## Fase 81 — Laporan Neraca (Balance Sheet)
+
+Lanjutan diskusi fitur berbayar: user tanya apa lagi yang perlu
+ditambahkan buat Pundi Business sekarang berbayar, direkomendasikan
+Neraca sebagai prioritas #1 (data mentahnya sudah lengkap dari
+double-entry bookkeeping yang sudah ada, cuma belum ada laporan yang
+mengagregasi jadi Neraca resmi). User minta dijelasin dulu konsepnya
+(sudah, dalam Bahasa Indonesia non-jargon) sebelum setuju lanjut build.
+
+- [x] **Keputusan desain kunci — Laba Ditahan dihitung KUMULATIF SEJAK
+      AWAL, bukan per tahun fiskal**: beda dari Laporan Laba Rugi yang
+      pakai `defaultRange` per tahun fiskal, Neraca butuh net income
+      SEMUA transaksi sejak company dibuat s/d `asOf` — karena app ini
+      tidak punya proses tutup buku (closing entries) yang mereset akun
+      revenue/expense tiap akhir periode. Kalau Laba Ditahan cuma dihitung
+      tahun berjalan, Neraca TIDAK AKAN balance begitu masuk tahun kedua
+- [x] `app/api/business/companies/[id]/reports/balance-sheet/route.ts`
+      (baru) — 2 aggregation: (1) saldo tiap akun asset/liability/equity
+      per tanggal `asOf` (pola sama `accounts/route.ts` GET, ditambah
+      filter `date: {$lte: asOf}`), (2) Laba Ditahan kumulatif (reuse
+      pola aggregation `reports/income-statement/route.ts` yang match
+      `reportSection exists`, tapi tanpa batas bawah tanggal — insight:
+      jumlah `netCredit` semua baris revenue+expense LANGSUNG jadi net
+      income, tidak perlu pisah revenue/expense dulu, karena netCredit
+      akun revenue natural positif & akun expense natural negatif).
+      Response include `isBalanced` (sanity check `assets.total ===
+      totalLiabilitiesAndEquity`, dibulatkan 2 desimal biar float-safe)
+- [x] `.../reports/balance-sheet/page.tsx` (baru) — pola sama persis
+      Laporan Laba Rugi (skeleton, `no-print`, `window.print()`), beda
+      di 1 date picker (`asOf`, bukan date-range from/to karena Neraca
+      itu snapshot 1 tanggal) + badge "Seimbang ✓" (emerald,
+      `CheckCircle2`) kalau `isBalanced` — penegasan visual sederhana
+      buat user non-akuntan
+- [x] `components/business/business-shell.tsx` (diubah) — nav item baru
+      "Neraca" (icon `Scale`, pas secara metafora) setelah "Laporan Laba
+      Rugi", satu fungsi `navItems()` yang dipakai desktop+mobile jadi
+      cukup 1 titik perubahan
+- [x] `.../panduan/page.tsx` (diubah) — 1 FAQ baru "Apa bedanya Neraca
+      sama Laporan Laba Rugi?", jawaban non-jargon (per-periode vs
+      per-tanggal, dan gimana keduanya terhubung lewat Laba Ditahan)
+- [x] tsc, eslint bersih (cuma warning `exhaustive-deps` yang sudah lazim
+      ditoleransi); `pnpm build` sukses (`/business/[companyId]/reports/
+      balance-sheet` masuk daftar route)
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway): setor modal
+      5.000.000 → Neraca hari itu: assets 5jt, equity 5jt (semua
+      contributedCapital, retainedEarnings 0), `isBalanced: true` →
+      tambah penjualan tunai 2jt + bayar sewa 500rb (dari Bank) + utang
+      usaha 300rb → Neraca: assets 6,5jt (Kas 7jt, Bank -500rb),
+      liabilities 300rb, equity 6,2jt (retainedEarnings tepat 1,2jt =
+      2jt-500rb-300rb), `totalLiabilitiesAndEquity` 6,5jt = `assets.total`
+      6,5jt, `isBalanced: true` → post 1 jurnal bertanggal BESOK → Neraca
+      `asOf` hari ini TIDAK berubah (6,5jt, filter tanggal benar), Neraca
+      `asOf` besok naik jadi 7,5jt (ikut menghitung); data uji dibersihkan
+- [x] **Bug ditemukan user via screenshot beberapa saat setelah rilis**:
+      Neraca company real user ("Toko Minuman") nampilin Rp0 di semua
+      baris padahal ada 1 jurnal "Virtual Office" tercatat hari itu juga.
+      Akar masalah: default `asOf` (waktu halaman dibuka tanpa pilih
+      tanggal) pakai `new Date()` mentah, sementara tanggal transaksi
+      disimpan sebagai UTC-midnight dari tanggal kalender yang dipilih di
+      date picker. Buat user WIB (UTC+7) antara jam 00:00-07:00 pagi,
+      kalender UTC "sekarang" masih di TANGGAL SEBELUMNYA — transaksi
+      yang baru dicatat "hari ini" (WIB) keliatan kayak tanggalnya di
+      masa depan relatif ke `new Date()`, jadi ke-exclude dari agregasi
+      `date: {$lte: asOf}`. Reproduce persis kondisi race-nya (dev server
+      jalan jam 06:5x WIB, persis window bug-nya) pakai company uji
+      throwaway, konfirmasi bug, lalu diperbaiki 2 iterasi: percobaan
+      pertama (default ke akhir hari kalender UTC) TERNYATA MASIH SALAH
+      (cuma geser masalahnya, bukan fix — kalender acuannya masih UTC,
+      bukan WIB), baru bener di percobaan kedua pakai pola geser +7 jam
+      `wibNow()` yang sudah ada persis di
+      `app/api/cron/daily-reminder/route.ts` buat nentuin kalender WIB
+      yang benar sebelum hitung akhir hari. Re-verified reproduce case
+      yang sama (masih di window bug jam 06:5x WIB) → `assets.total`
+      sekarang benar 1.000.000 (sebelumnya 0), `asOf` response
+      `2026-07-13T23:59:59.999Z` (akhir hari WIB, bukan UTC); data uji
+      dibersihkan. **Catatan buat masa depan**: kalau ada laporan lain
+      yang butuh default "sampai hari ini" (bukan date-range fiscal year
+      kayak Laporan Laba Rugi yang punya akhir periode jauh di masa
+      depan sehingga tidak kena bug ini), pola `wibNow()` + akhir hari
+      WAJIB dipakai, bukan `new Date()` mentah
+
+## Fase 82 — Mobile Bottom Tab Bar buat Pundi Business
+
+User buka Pundi Business di mobile dan tidak nemu menu apa-apa —
+sebelumnya versi mobile cuma punya dropdown di avatar top bar yang
+nge-list SEMUA 7 item nav sekaligus (kurang idiomatis & gampang
+kepencet salah), beda jauh dari pengalaman mobile Pundi personal yang
+sudah punya bottom tab bar + halaman "Lainnya" (Fase 71). Diminta
+disamakan polanya, reuse persis `components/app-shell.tsx`.
+
+- [x] `components/business/business-shell.tsx` (diubah) — tambah bottom
+      tab bar mobile (floating pill, pola & styling sama persis
+      `app-shell.tsx`, cuma warna slate bukan emerald): 4 tab utama
+      (Dashboard/Transaksi Baru/Jurnal/Laporan Laba Rugi — dipilih karena
+      paling sering dicek/dipakai harian) + 1 slot "Lainnya" buat sisanya
+      (Akun/Neraca/Pengaturan/Panduan). Top bar mobile diubah dari
+      dropdown-berisi-semua-item jadi pola back-button+judul pas di
+      halaman sekunder (persis `SECONDARY_PAGE_TITLES` personal), avatar
+      dropdown disederhanakan jadi cuma akun-level actions (Panduan,
+      Hubungi WhatsApp, Kembali ke Pundi, Keluar) — bukan lagi nav
+      lengkap
+- [x] `app/(business)/business/[companyId]/more/page.tsx` (baru) — tujuan
+      tab "Lainnya", pola sama persis `app/(app)/more/page.tsx` personal:
+      Card profil user, Card daftar item nav sekunder (Akun/Neraca/
+      Pengaturan) sebagai list tap-target besar, Card Panduan+Hubungi,
+      Card Kembali ke Pundi+Keluar. **Tambahan yang personal tidak
+      punya**: company switcher (list semua company + "Perusahaan
+      Baru") — perlu di mobile karena Business (beda dari personal)
+      support multi-company per user, dan sebelumnya cuma ada di
+      sidebar desktop
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/business/[companyId]/
+      more` masuk daftar route)
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway): semua 9
+      destinasi (dashboard, transactions/new, journal-entries, reports/
+      income-statement, reports/balance-sheet, accounts, settings,
+      panduan, more) dicek satu-satu → semua 200 (bukan redirect ke
+      login atau 404); data uji dibersihkan
+- [x] **Bug ditemukan user lewat screenshot**: label tab bottom mobile
+      "Transaksi Baru" & "Laporan Laba Rugi" kebungkus 2 baris di slot
+      grid-cols-5 yang sempit, bikin baris ikon jadi tidak sejajar
+      antar-tab. Diperbaiki dengan label khusus mobile 1 kata (`MOBILE_TABS`:
+      Dashboard/Catat/Jurnal/Laba Rugi — beda dari label lengkap di
+      sidebar desktop) + `whitespace-nowrap` sebagai jaring pengaman
+
+## Fase 83 — Redesign Onboarding Business (Full-Screen, Konsisten Personal)
+
+User bandingkan halaman `/business/onboarding` dengan onboarding personal
+Pundi (`app/onboarding/page.tsx`) — kurang menarik karena masih dibungkus
+`BusinessShell` (sidebar dengan "Pilih Perusahaan" kosong, "Kembali ke
+Pundi") padahal user belum punya company sama sekali, beda dari onboarding
+personal yang full-screen standalone dengan gradient blob & progress bar.
+
+- [x] **Pindah lokasi file** — `app/(business)/business/onboarding/
+      page.tsx` dipindah jadi `app/business/onboarding/page.tsx` (di luar
+      route group `(business)`, pola sama persis `app/onboarding/
+      page.tsx` personal yang juga di luar `(app)`). URL TETAP
+      `/business/onboarding` (route group tidak nambah segment URL) —
+      efeknya cuma lepas dari layout `BusinessShell`, dapat kontrol penuh
+      buat full-screen treatment. Terverifikasi tidak ada konflik routing
+      sama `app/(business)/business/[companyId]/...` yang dinamis (Next.js
+      App Router memang mendukung split route across groups begini)
+  - **Efek samping positif**: route ini sekarang `○` (static) di build
+    output, bukan `ƒ` (dynamic) — karena tidak lagi lewat
+    `getServerSession` di layout `BusinessShell`
+- [x] Redesign visual full-screen (reuse pola persis `app/onboarding/
+      page.tsx`, tema slate bukan emerald): background gradient + blob
+      dekoratif slate (pola sama `app/register/business/page.tsx`, bukan
+      `GradientBlobs` component yang hardcode warna emerald), progress
+      bar 2 segmen ("Perusahaan"/"Modal Awal") + label langkah, Card
+      `shadow-xl border-0`, step 1 dapat icon badge besar (`size-16
+      rounded-3xl`) + headline terpusat sebelum form (gabungan
+      "welcome"+form jadi satu layar, karena onboarding Business cuma
+      2 langkah nyata bukan 4 kayak personal)
+- [x] tsc, eslint bersih; `pnpm build` sukses, tidak ada route conflict
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway): `GET
+      /business/onboarding` (authed) → 200; data uji dibersihkan
+- [x] **Bug ditemukan user lewat screenshot mobile**: baris akun di
+      halaman Akun (`AccountRow` di `.../accounts/page.tsx`) pakai
+      `flex items-center justify-between` satu baris tanpa wrap — di
+      layar sempit, nama akun panjang ("Piutang Usaha", "Prive /
+      Penarikan Pemilik") kebungkus tapi badge "bawaan" & saldo "Rp 0"
+      (sisi kanan `shrink-0`) ke-posisi di baris yang sama secara visual
+      jadi TUMPANG TINDIH ("bawaaRp 0"). Diperbaiki jadi layout stack
+      2-baris di mobile (`flex-col`, kiri: kode+nama+badge dengan
+      `flex-wrap`; kanan: saldo+kontrol) yang balik jadi 1 baris di
+      `sm:` ke atas (`sm:flex-row sm:justify-between`) — pola grid
+      responsif yang sama juga diterapkan ke form "Akun Baru"
+      (`grid-cols-1 sm:grid-cols-2`, sebelumnya 2 kolom fixed di semua
+      ukuran layar)
+- [x] tsc, eslint bersih; `pnpm build` sukses

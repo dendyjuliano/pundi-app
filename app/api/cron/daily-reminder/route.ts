@@ -4,6 +4,8 @@ import Expense from "@/models/Expense";
 import PushSubscription from "@/models/PushSubscription";
 import RecurringExpense from "@/models/RecurringExpense";
 import Installment from "@/models/Installment";
+import RecurringBusinessExpense from "@/models/business/RecurringBusinessExpense";
+import CompanyMember from "@/models/business/CompanyMember";
 import { getMonthlyBudgetOrDraft } from "@/lib/monthlyBudget";
 import { toMonthString } from "@/lib/dashboardSummary";
 import { formatRupiah } from "@/lib/format";
@@ -113,10 +115,48 @@ export async function GET(request: Request) {
     installmentsByUser.set(uid, list);
   }
 
+  // 5. Beban berulang Pundi Business jatuh tempo hari ini — sama pola
+  // semi-otomatis persis di atas (cuma diingatkan, TIDAK auto-post
+  // jurnal), tapi penerimanya SEMUA member company itu yang punya push
+  // subscription (bukan cuma pembuat item), karena staff pun bisa catat
+  // transaksi lewat template "Bayar Beban Operasional".
+  const dueBusinessRecurringExpenses = await RecurringBusinessExpense.find({
+    active: true,
+    dayOfMonth: wib.getUTCDate(),
+    $or: [
+      { frequency: { $ne: "yearly" } },
+      { frequency: "yearly", month: wib.getUTCMonth() + 1 },
+    ],
+  });
+  const businessCompanyIds = [
+    ...new Set(dueBusinessRecurringExpenses.map((i) => i.companyId.toString())),
+  ];
+  const businessMembers = await CompanyMember.find({
+    companyId: { $in: businessCompanyIds },
+  });
+  const memberUserIdsByCompany = new Map<string, string[]>();
+  for (const m of businessMembers) {
+    const cid = m.companyId.toString();
+    const list = memberUserIdsByCompany.get(cid) ?? [];
+    list.push(m.userId.toString());
+    memberUserIdsByCompany.set(cid, list);
+  }
+  const businessRecurringByUser = new Map<string, typeof dueBusinessRecurringExpenses>();
+  for (const item of dueBusinessRecurringExpenses) {
+    const memberIds = memberUserIdsByCompany.get(item.companyId.toString()) ?? [];
+    for (const uid of memberIds) {
+      if (!subscriberIds.includes(uid)) continue;
+      const list = businessRecurringByUser.get(uid) ?? [];
+      list.push(item);
+      businessRecurringByUser.set(uid, list);
+    }
+  }
+
   let expenseReminderSent = 0;
   let budgetReminderSent = 0;
   let recurringReminderSent = 0;
   let installmentReminderSent = 0;
+  let businessRecurringReminderSent = 0;
   let removed = 0;
 
   for (const sub of subscriptions) {
@@ -173,6 +213,19 @@ export async function GET(request: Request) {
       if (result === "sent") installmentReminderSent++;
       if (result === "removed") removed++;
     }
+
+    for (const item of businessRecurringByUser.get(uid) ?? []) {
+      const frequencyLabel = item.frequency === "yearly" ? " (tahunan)" : "";
+      const result = await sendPushToSubscription(sub, {
+        title: "Pundi Business",
+        body: `${item.name}${frequencyLabel} ${formatRupiah(
+          item.amount
+        )} jatuh tempo hari ini — tap buat catat`,
+        url: `/business/${item.companyId}/transactions/new?confirmRecurring=${item._id}`,
+      });
+      if (result === "sent") businessRecurringReminderSent++;
+      if (result === "removed") removed++;
+    }
   }
 
   return NextResponse.json({
@@ -182,10 +235,12 @@ export async function GET(request: Request) {
     budgetPending: budgetPending.size,
     recurringDue: dueRecurringExpenses.length,
     installmentDue: dueInstallments.length,
+    businessRecurringDue: dueBusinessRecurringExpenses.length,
     expenseReminderSent,
     budgetReminderSent,
     recurringReminderSent,
     installmentReminderSent,
+    businessRecurringReminderSent,
     removed,
   });
 }
