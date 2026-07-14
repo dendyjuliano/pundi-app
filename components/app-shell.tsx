@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { setPundiMode } from "@/lib/pundiMode";
 import {
   LayoutDashboard,
   Wallet,
@@ -138,6 +140,11 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    setPundiMode("personal");
+  }, []);
+
   const secondaryPageTitle = Object.entries(SECONDARY_PAGE_TITLES).find(
     ([href]) => pathname.startsWith(href),
   )?.[1];

@@ -3902,3 +3902,103 @@ personal yang full-screen standalone dengan gradient blob & progress bar.
       (`grid-cols-1 sm:grid-cols-2`, sebelumnya 2 kolom fixed di semua
       ukuran layar)
 - [x] tsc, eslint bersih; `pnpm build` sukses
+
+## Fase 84 — Card "Beban Berulang Aktif" di Dashboard Business
+
+User minta Dashboard nampilin beban berulang yang lagi aktif, biar tidak
+perlu bolak-balik ke Pengaturan buat cek apa saja yang sudah dijadwalkan.
+
+- [x] `.../[companyId]/dashboard/page.tsx` (diubah) — Card baru "Beban
+      Berulang Aktif" setelah Card "Beban Terbesar": fetch
+      `GET .../recurring-expenses` (endpoint yang sudah ada dari Fase 80,
+      tidak ada API baru), filter `active`, urut berdasarkan `dayOfMonth`
+      terdekat. Tiap baris nampilin nama, jadwal ("Tiap tanggal N" /
+      "Tiap {bulan}, tgl N"), dan nominal — plus badge amber "Jatuh tempo
+      hari ini" (helper `isDueToday`, cek `dayOfMonth` cocok tanggal hari
+      ini DAN, kalau `yearly`, `month` juga cocok) buat item yang
+      persis jatuh tempo pas dibuka. Tombol "Kelola" di header Card
+      nge-link ke Pengaturan buat tambah/edit/nonaktifkan
+- [x] `isDueToday` sengaja pakai `new Date()` browser (client component,
+      bukan default boundary server) — beda dari bug WIB Fase 81, di sini
+      tidak ada isu timezone karena jam yang dipakai adalah jam device
+      user sendiri (WIB), bukan UTC server, jadi tanggal kalendernya
+      sudah otomatis benar tanpa perlu geser offset apa pun
+- [x] tsc, eslint bersih; `pnpm build` sukses
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway): bikin
+      recurring expense `dayOfMonth`=tanggal WIB hari ini, `frequency:
+      yearly`, `month`=bulan WIB berjalan → `GET recurring-expenses`
+      balikin field lengkap (name/amount/dayOfMonth/frequency/month/
+      active) yang persis dikonsumsi card baru; data uji dibersihkan
+
+## Fase 85 — Grouping Sidebar Desktop Pundi Business (Konsisten Personal)
+
+User minta sidebar desktop Business dikelompokkan seperti personal Pundi
+(`NAV_GROUPS` di `components/app-shell.tsx`: Input/Laporan/Pengaturan
+dengan section header), bukan 7 item flat tanpa pengelompokan.
+
+- [x] `components/business/business-shell.tsx` (diubah) — `navItems()`
+      (flat) diganti `navGroups()` yang balikin `NavGroup[]`, pola sama
+      persis `NAV_GROUPS` personal:
+      - *(tanpa label)*: Dashboard
+      - **Input**: Transaksi Baru, Jurnal
+      - **Laporan**: Laporan Laba Rugi, Neraca
+      - **Pengaturan**: Akun, Pengaturan (Akun dikelompokkan sebagai
+        konfigurasi/referensi, bukan "Input" — sejalan sama placement-nya
+        di tab "Lainnya" mobile Fase 82)
+      - Flat `items` (dipakai `mobileTabItems` & `MORE_MENU_SUFFIXES`)
+        sekarang diturunkan lewat `groups.flatMap((g) => g.items)` — satu
+        sumber kebenaran, tidak ada 2 daftar nav yang bisa saling
+        kedaluwarsa
+      - Sidebar desktop render section header (`text-[11px] font-semibold
+        uppercase tracking-wider text-muted-foreground/70`) sebelum tiap
+        grup berlabel — styling & struktur JSX disalin persis dari
+        `app-shell.tsx`. Bottom tab bar mobile TETAP flat (tidak berubah,
+        tidak ada ruang buat section header di situ)
+- [x] tsc, eslint bersih; `pnpm build` sukses
+
+## Fase 86 — Login Ingat Mode Terakhir (Personal/Business)
+
+User keluhan: user yang cuma pakai Pundi Business selalu diarahkan ke
+dashboard personal tiap habis login — harus klik "Pundi Business" manual
+tiap kali. Didiskusikan 2 opsi (otomatis inget mode terakhir vs toggle
+manual di Settings), user pilih **otomatis** (zero-config, konsisten sama
+pola "last company" yang sudah pakai localStorage).
+
+- [x] `lib/pundiMode.ts` (baru) — `setPundiMode("personal"|"business")`
+      nulis cookie `pundi_mode` (BUKAN httpOnly — sengaja bisa dibaca
+      client DAN `proxy.ts` server-side), `getPundiMode()` buat baca
+      balik di client (dipakai `app/login/page.tsx`)
+- [x] `components/app-shell.tsx` & `components/business/business-shell.tsx`
+      (diubah) — masing-masing `setPundiMode("personal")`/
+      `setPundiMode("business")` di `useEffect` sekali waktu mount. Efeknya:
+      begitu user buka HALAMAN APAPUN di salah satu mode, cookie ke-update
+      ke mode itu — "mode terakhir" murni ditentukan dari histori
+      kunjungan, tidak perlu pengaturan eksplisit
+- [x] `proxy.ts` (diubah) — blok `token && isPublicRoute` (user yang
+      sudah login buka `/`, `/login`, `/register`, dst) sekarang baca
+      cookie `pundi_mode` buat nentuin redirect ke `/dashboard` (default,
+      kalau cookie belum ada — user baru) atau `/business` (yang sendiri
+      sudah auto-redirect ke company terakhir/onboarding, logic lama
+      tidak disentuh)
+- [x] `app/login/page.tsx` (diubah) — **root cause kedua yang ditemukan**:
+      form submit habis login sukses `router.push(callbackUrl)` dengan
+      fallback hardcode `"/dashboard"` — ini CLIENT-SIDE push abis
+      `signIn()`, tidak lewat blok `isPublicRoute` di `proxy.ts` sama
+      sekali (targetnya langsung `/dashboard`, bukan public route), jadi
+      fix `proxy.ts` doang TIDAK CUKUP. Fallback diganti baca
+      `getPundiMode()` juga — `callbackUrl` dari query string (kasus
+      diusir dari halaman protected) tetap diprioritaskan, mode cookie
+      cuma dipakai kalau tidak ada `callbackUrl` eksplisit. Pembacaan
+      cookie sengaja ditaruh di dalam `handleSubmit` (event handler),
+      bukan di render — `document.cookie` tidak ada di server-render
+      pass biar tidak mismatch hydration
+- [x] tsc, eslint bersih; `pnpm build` sukses
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway, cookie
+      `pundi_mode` di-set manual lewat `-b` buat simulasikan apa yang
+      BusinessShell/AppShell lakukan client-side): `GET /` tanpa cookie
+      mode → redirect `/dashboard` (default aman buat user baru) →
+      dengan `pundi_mode=business` → redirect `/business` → dengan
+      `pundi_mode=personal` → redirect `/dashboard` → `GET /login`
+      dengan `pundi_mode=business` → sama-sama redirect `/business`
+      (konfirmasi semua public route kena logic yang sama); data uji
+      dibersihkan

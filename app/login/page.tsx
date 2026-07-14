@@ -11,11 +11,12 @@ import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/password-input";
 import { GradientBlobs } from "@/components/gradient-blobs";
 import { RadialProgress } from "@/components/radial-progress";
+import { getPundiMode } from "@/lib/pundiMode";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const searchParamCallbackUrl = searchParams.get("callbackUrl");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,6 +41,14 @@ function LoginForm() {
       return;
     }
 
+    // Kalau bukan gara-gara diusir dari halaman protected (callbackUrl
+    // dari query string), arahkan ke mode terakhir yang dipakai user
+    // (personal/business) — bukan selalu dashboard personal, biar user
+    // yang cuma pakai Business tidak perlu klik "Pundi Business" lagi
+    // tiap abis login.
+    const callbackUrl =
+      searchParamCallbackUrl ||
+      (getPundiMode() === "business" ? "/business" : "/dashboard");
     router.push(callbackUrl);
     router.refresh();
   }

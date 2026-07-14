@@ -20,7 +20,14 @@ export default async function proxy(request: NextRequest) {
   }
 
   if (token && isPublicRoute) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    // Balikin user yang sudah login ke mode terakhir yang dia pakai
+    // (personal atau business) — bukan selalu ke dashboard personal.
+    // Cookie ini di-set BusinessShell/AppShell tiap mount (lihat
+    // lib/pundiMode.ts), jadi user yang cuma pakai Business tidak perlu
+    // klik "Pundi Business" lagi tiap kali abis login.
+    const mode = request.cookies.get("pundi_mode")?.value;
+    const target = mode === "business" ? "/business" : "/dashboard";
+    return NextResponse.redirect(new URL(target, request.url));
   }
 
   if (pathname.startsWith("/admin") && token?.role !== "admin") {

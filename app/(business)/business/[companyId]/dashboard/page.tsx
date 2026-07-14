@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { TrendingUp, TrendingDown, PlusCircle, AlertTriangle, Info } from "lucide-react";
+import { TrendingUp, TrendingDown, PlusCircle, AlertTriangle, Info, Repeat } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import {
   Card,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 type IncomeStatement = {
   netIncome: number;
@@ -28,10 +29,31 @@ type IncomeStatement = {
 
 type SubscriptionStatus = "trial" | "active" | "pending_verification" | "overdue";
 
+type RecurringExpense = {
+  _id: string;
+  name: string;
+  amount: number;
+  dayOfMonth: number;
+  frequency: "monthly" | "yearly";
+  month?: number;
+  active: boolean;
+};
+
+const MONTH_LABEL = [
+  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+];
+
+function isDueToday(item: RecurringExpense, today: Date) {
+  if (item.dayOfMonth !== today.getDate()) return false;
+  return item.frequency === "monthly" || item.month === today.getMonth() + 1;
+}
+
 export default function BusinessDashboardPage() {
   const { companyId } = useParams<{ companyId: string }>();
   const [report, setReport] = useState<IncomeStatement | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+  const [recurring, setRecurring] = useState<RecurringExpense[] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -46,6 +68,13 @@ export default function BusinessDashboardPage() {
     (async () => {
       const res = await fetch(`/api/business/companies/${companyId}/subscription`);
       if (res.ok) setSubscriptionStatus((await res.json()).status);
+    })();
+  }, [companyId]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/business/companies/${companyId}/recurring-expenses`);
+      if (res.ok) setRecurring(await res.json());
     })();
   }, [companyId]);
 
@@ -64,6 +93,11 @@ export default function BusinessDashboardPage() {
     .slice(0, 3);
 
   const positive = report.netIncome >= 0;
+
+  const today = new Date();
+  const activeRecurring = (recurring ?? [])
+    .filter((r) => r.active)
+    .sort((a, b) => a.dayOfMonth - b.dayOfMonth);
 
   return (
     <div className="space-y-6">
@@ -150,6 +184,50 @@ export default function BusinessDashboardPage() {
               <div key={a.name} className="flex items-center justify-between text-sm">
                 <span>{a.name}</span>
                 <span className="font-medium">{formatRupiah(a.amount)}</span>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Beban Berulang Aktif</CardTitle>
+            <CardDescription>Tagihan rutin yang perlu dicatat tiap jatuh tempo</CardDescription>
+          </div>
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/business/${companyId}/settings`}>Kelola</Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {activeRecurring.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Belum ada beban berulang aktif</p>
+          ) : (
+            activeRecurring.map((item) => (
+              <div
+                key={item._id}
+                className="flex items-center justify-between gap-3 rounded-xl border bg-muted/30 px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Repeat className="size-3.5 text-amber-600 shrink-0" />
+                    <span className="text-sm font-medium truncate">{item.name}</span>
+                    {isDueToday(item, today) && (
+                      <Badge className="bg-amber-100 text-amber-800 text-[10px]">
+                        Jatuh tempo hari ini
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {item.frequency === "yearly"
+                      ? `Tiap ${MONTH_LABEL[(item.month ?? 1) - 1]}, tgl ${item.dayOfMonth}`
+                      : `Tiap tanggal ${item.dayOfMonth}`}
+                  </p>
+                </div>
+                <span className="text-sm font-semibold tabular-nums shrink-0">
+                  {formatRupiah(item.amount)}
+                </span>
               </div>
             ))
           )}

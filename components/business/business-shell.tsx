@@ -32,20 +32,47 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { WHATSAPP_URL } from "@/lib/contact";
+import { setPundiMode } from "@/lib/pundiMode";
 
 type Company = { _id: string; name: string; role: "owner" | "accountant" | "staff" };
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavGroup = { label: string | null; items: NavItem[] };
 
-function navItems(companyId: string): NavItem[] {
+// Grouped buat sidebar desktop — pola sama persis NAV_GROUPS di
+// components/app-shell.tsx (personal), biar jelas sekilas mana yang
+// buat input harian, mana laporan, mana konfigurasi. Mobile bottom tab
+// bar tetap flat (lihat MOBILE_TABS di bawah) — tidak ada ruang buat
+// section header di sana.
+function navGroups(companyId: string): NavGroup[] {
   return [
-    { href: `/business/${companyId}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
-    { href: `/business/${companyId}/accounts`, label: "Akun", icon: BookOpen },
-    { href: `/business/${companyId}/transactions/new`, label: "Transaksi Baru", icon: PlusCircle },
-    { href: `/business/${companyId}/journal-entries`, label: "Jurnal", icon: ScrollText },
-    { href: `/business/${companyId}/reports/income-statement`, label: "Laporan Laba Rugi", icon: FileBarChart },
-    { href: `/business/${companyId}/reports/balance-sheet`, label: "Neraca", icon: Scale },
-    { href: `/business/${companyId}/settings`, label: "Pengaturan", icon: Settings },
+    {
+      label: null,
+      items: [
+        { href: `/business/${companyId}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
+      ],
+    },
+    {
+      label: "Input",
+      items: [
+        { href: `/business/${companyId}/transactions/new`, label: "Transaksi Baru", icon: PlusCircle },
+        { href: `/business/${companyId}/journal-entries`, label: "Jurnal", icon: ScrollText },
+      ],
+    },
+    {
+      label: "Laporan",
+      items: [
+        { href: `/business/${companyId}/reports/income-statement`, label: "Laporan Laba Rugi", icon: FileBarChart },
+        { href: `/business/${companyId}/reports/balance-sheet`, label: "Neraca", icon: Scale },
+      ],
+    },
+    {
+      label: "Pengaturan",
+      items: [
+        { href: `/business/${companyId}/accounts`, label: "Akun", icon: BookOpen },
+        { href: `/business/${companyId}/settings`, label: "Pengaturan", icon: Settings },
+      ],
+    },
   ];
 }
 
@@ -102,6 +129,10 @@ export function BusinessShell({
   const [companies, setCompanies] = useState<Company[] | null>(null);
 
   useEffect(() => {
+    setPundiMode("business");
+  }, []);
+
+  useEffect(() => {
     (async () => {
       const res = await fetch("/api/business/companies");
       if (res.ok) setCompanies(await res.json());
@@ -116,7 +147,8 @@ export function BusinessShell({
   }
 
   const currentCompany = companies?.find((c) => c._id === companyId);
-  const items = companyId ? navItems(companyId) : [];
+  const groups = companyId ? navGroups(companyId) : [];
+  const items = groups.flatMap((g) => g.items);
   const mobileTabItems = MOBILE_TABS.map((tab) => {
     const item = items.find((i) => i.href.endsWith(tab.suffix));
     return item ? { href: item.href, label: tab.label, icon: item.icon } : null;
@@ -163,26 +195,35 @@ export function BusinessShell({
           </div>
         )}
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {items.map((item) => {
-            const active = pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-slate-800 text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <Icon className="size-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-3 py-4 space-y-4">
+          {groups.map((group, i) => (
+            <div key={group.label ?? `group-${i}`} className="space-y-1">
+              {group.label && (
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {group.label}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const active = pathname.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-slate-800 text-white shadow-sm"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="p-3 border-t space-y-1">
