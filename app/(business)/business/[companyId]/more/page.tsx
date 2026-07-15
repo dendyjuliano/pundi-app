@@ -7,6 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import {
   BookOpen,
   Scale,
+  Waves,
   Settings,
   HelpCircle,
   MessageCircle,
@@ -65,6 +66,7 @@ export default function BusinessMorePage() {
   const menuItems: MenuItem[] = [
     { label: "Akun", icon: BookOpen, href: `/business/${companyId}/accounts` },
     { label: "Neraca", icon: Scale, href: `/business/${companyId}/reports/balance-sheet` },
+    { label: "Arus Kas", icon: Waves, href: `/business/${companyId}/reports/cash-flow` },
     { label: "Pengaturan", icon: Settings, href: `/business/${companyId}/settings` },
   ];
 

@@ -143,6 +143,11 @@ export default function BusinessPanduanPage() {
         'Laporan Laba Rugi nunjukkin performa selama SATU PERIODE (mis. untung/rugi selama bulan Mei). Neraca nunjukkin kondisi keuangan di SATU TANGGAL (mis. per 31 Mei: perusahaan ini sekarang punya apa aja — Aset — dan berutang berapa — Utang — sehingga sisa buat pemilik berapa — Modal). Keduanya saling terhubung: laba/rugi yang dihasilkan tiap periode ikut menambah/mengurangi Modal di Neraca (baris "Laba Ditahan").',
     },
     {
+      question: "Terus Arus Kas bedanya apa lagi dari dua laporan itu?",
+      answer:
+        'Laba Rugi bisa "untung" di atas kertas walau Kas-nya belum tentu bertambah (mis. jual barang tapi belum dibayar customer — itu Piutang, bukan Kas). Arus Kas fokus KHUSUS ke pergerakan Kas & Bank beneran selama satu periode, dipecah 3 bagian: Aktivitas Operasi (dari jualan/beban sehari-hari), Aktivitas Investasi (beli/jual aset — belum ada modul-nya di Pundi Business, jadi selalu Rp0 dulu), dan Aktivitas Pendanaan (modal masuk dari pemilik, atau prive). Kalau Laba Rugi bagus tapi Arus Kas negatif, itu tanda uang kamu "tertahan" di Piutang/Persediaan — sinyal penting yang tidak kelihatan dari Laba Rugi doang.',
+    },
+    {
       question: "Siapa saja yang bisa lihat data perusahaan ini?",
       answer:
         "Cuma anggota yang sudah diundang lewat halaman Pengaturan (owner/akuntan/staff). Ini domain data yang benar-benar terpisah dari akun personal Pundi — perusahaan lain atau keluarga Pundi-mu tidak bisa mengaksesnya sama sekali.",

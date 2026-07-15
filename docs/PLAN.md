@@ -4002,3 +4002,74 @@ pola "last company" yang sudah pakai localStorage).
       dengan `pundi_mode=business` → sama-sama redirect `/business`
       (konfirmasi semua public route kena logic yang sama); data uji
       dibersihkan
+
+## Fase 87 — Laporan Arus Kas (Cash Flow Statement)
+
+Lanjutan rekomendasi fitur setelah Neraca — melengkapi trio laporan
+keuangan standar (Laba Rugi + Neraca + Arus Kas). User setuju langsung
+gas tanpa perlu penjelasan konsep dulu (beda dari Neraca kemarin).
+
+- [x] **Keputusan desain — metode LANGSUNG (direct method), bukan tidak
+      langsung**: karena semua transaksi sudah tercatat double-entry
+      lengkap, arus kas dihitung langsung dari baris jurnal yang
+      menyentuh akun Kas/Bank tiap periode — bukan direkonstruksi dari
+      selisih Neraca 2 titik waktu (metode tidak langsung), yang baru
+      relevan kalau ada item non-kas kompleks (mis. depresiasi) yang
+      butuh disesuaikan balik. Klasifikasi 3 aktivitas standar: Operasi
+      (lawan akun revenue/expense/asset non-kas/liability), Pendanaan
+      (lawan akun equity — Modal Pemilik/Prive), Investasi (SELALU Rp0
+      buat sekarang — CoA belum punya akun Aset Tetap, di luar scope
+      sampai modul itu ada, tapi seksi tetap ditampilkan biar format
+      laporan konsisten sama standar 3-aktivitas)
+- [x] **Bug ditemukan & diperbaiki SEBELUM testing** (nemu sendiri lewat
+      reasoning, bukan lewat screenshot user kali ini): implementasi
+      awal memproses baris NON-kas dari SEMUA entry tanpa syarat — entry
+      akrual murni (mis. debit Beban Admin/kredit Utang Usaha, belum
+      dibayar sama sekali) jadinya tetap muncul di breakdown `byAccount`
+      Aktivitas Operasi (saling meniadakan di TOTAL tapi individual
+      row-nya tetap kelihatan), padahal tidak ada kas yang beneran
+      bergerak. Diperbaiki dengan guard `touchesCash` per-entry — entry
+      yang sama sekali tidak punya baris akun kas di-skip total, tidak
+      diproses sama sekali
+- [x] `app/api/business/companies/[id]/reports/cash-flow/route.ts`
+      (baru) — date-range (`from`/`to`, `defaultRange` per fiscal year,
+      copy-paste sama persis dari `income-statement/route.ts`, bukan
+      snapshot 1 tanggal kayak Neraca). `beginningCash` dihitung dari
+      semua entry SEBELUM `from`, `periodCashDelta` dari baris kas
+      langsung di periode ini, `operating`/`financing` dari kontribusi
+      baris NON-kas (transfer antar-kas — mis. Kas ke Bank — otomatis
+      saling meniadakan karena kedua baris sama-sama `isCashAccount`,
+      tidak ada baris "lawan" yang diproses). `isBalanced` (sanity
+      check): total `operating+investing+financing` (direkonstruksi
+      dari baris non-kas) HARUS persis sama dengan `periodCashDelta`
+      (dihitung langsung dari baris kas) — dua cara hitung independen
+      yang harus konvergen, pola sama semangatnya kayak Neraca
+- [x] `.../reports/cash-flow/page.tsx` (baru) — pola sama persis Laporan
+      Laba Rugi (date-range Popover+Calendar, `no-print`,
+      `window.print()`), 4 Card (Aktivitas Operasi, Aktivitas Investasi
+      dengan pesan "belum ada modul Aset Tetap", Aktivitas Pendanaan,
+      Ringkasan: kenaikan/penurunan kas bersih + kas awal + kas akhir) +
+      badge "Seimbang ✓" kalau `isBalanced` (pola sama Neraca)
+- [x] Nav — `components/business/business-shell.tsx` (item baru "Arus
+      Kas" icon `Waves` di grup "Laporan" desktop, ditambah ke
+      `MORE_MENU_SUFFIXES`/`SECONDARY_PAGE_TITLES`), `.../more/page.tsx`
+      mobile (item menu baru), `.../panduan/page.tsx` (FAQ baru
+      jelasin bedanya Arus Kas vs Laba Rugi vs Neraca, termasuk insight
+      "bisa untung di Laba Rugi tapi Arus Kas negatif kalau uang
+      tertahan di Piutang/Persediaan")
+- [x] tsc, eslint bersih (cuma warning `exhaustive-deps` yang sudah lazim
+      ditoleransi); `pnpm build` sukses (`/business/[companyId]/reports/
+      cash-flow` masuk daftar route)
+- [x] Verifikasi fungsional lewat curl (akun uji throwaway, skenario 6
+      jurnal): setor modal 5jt (financing) → penjualan tunai 2jt
+      (operating) → bayar sewa 500rb dari Bank (operating) → prive 200rb
+      (financing) → **transfer 1jt Kas↔Bank** (harus TIDAK muncul sama
+      sekali) → **akrual murni Beban Admin/Utang Usaha 300rb belum
+      dibayar** (harus TIDAK muncul sama sekali, konfirmasi fix bug di
+      atas). Hasil: `operating.total` 1.500.000 (2jt-500rb, byAccount
+      cuma 2 baris: Pendapatan Penjualan & Beban Sewa, TIDAK ada Beban
+      Admin/Utang Usaha) → `financing.total` 4.800.000 (5jt-200rb) →
+      `investing.total` 0 → `netCashFlow`=`endingCash` 6.300.000,
+      `isBalanced: true` → cross-check independen: saldo Kas+Bank
+      aktual dari `GET accounts` persis 6.300.000, cocok 100% sama
+      `endingCash`; data uji dibersihkan

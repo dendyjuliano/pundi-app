@@ -12,6 +12,7 @@ import {
   ScrollText,
   FileBarChart,
   Scale,
+  Waves,
   Settings,
   ChevronDown,
   ArrowLeft,
@@ -64,6 +65,7 @@ function navGroups(companyId: string): NavGroup[] {
       items: [
         { href: `/business/${companyId}/reports/income-statement`, label: "Laporan Laba Rugi", icon: FileBarChart },
         { href: `/business/${companyId}/reports/balance-sheet`, label: "Neraca", icon: Scale },
+        { href: `/business/${companyId}/reports/cash-flow`, label: "Arus Kas", icon: Waves },
       ],
     },
     {
@@ -92,7 +94,14 @@ const MOBILE_TABS: { suffix: string; label: string }[] = [
 
 // Rute yang bikin tab "More" nyala aktif — termasuk /more sendiri plus
 // setiap halaman yang cuma bisa dijangkau lewat sana di mobile.
-const MORE_MENU_SUFFIXES = ["/more", "/accounts", "/reports/balance-sheet", "/settings", "/panduan"];
+const MORE_MENU_SUFFIXES = [
+  "/more",
+  "/accounts",
+  "/reports/balance-sheet",
+  "/reports/cash-flow",
+  "/settings",
+  "/panduan",
+];
 
 // Judul header mobile pas lagi di salah satu halaman yang cuma bisa
 // dijangkau lewat tab "More" — dipetakan ke suffix path (bukan full path,
@@ -101,6 +110,7 @@ const MORE_MENU_SUFFIXES = ["/more", "/accounts", "/reports/balance-sheet", "/se
 const SECONDARY_PAGE_TITLES: { suffix: string; label: string }[] = [
   { suffix: "/accounts", label: "Akun" },
   { suffix: "/reports/balance-sheet", label: "Neraca" },
+  { suffix: "/reports/cash-flow", label: "Arus Kas" },
   { suffix: "/settings", label: "Pengaturan" },
   { suffix: "/panduan", label: "Panduan" },
 ];
