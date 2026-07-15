@@ -8,6 +8,7 @@ import {
   BookOpen,
   Scale,
   Waves,
+  HeartPulse,
   Settings,
   HelpCircle,
   MessageCircle,
@@ -67,6 +68,7 @@ export default function BusinessMorePage() {
     { label: "Akun", icon: BookOpen, href: `/business/${companyId}/accounts` },
     { label: "Neraca", icon: Scale, href: `/business/${companyId}/reports/balance-sheet` },
     { label: "Arus Kas", icon: Waves, href: `/business/${companyId}/reports/cash-flow` },
+    { label: "Rasio Keuangan", icon: HeartPulse, href: `/business/${companyId}/reports/financial-ratios` },
     { label: "Pengaturan", icon: Settings, href: `/business/${companyId}/settings` },
   ];
 

@@ -4073,3 +4073,82 @@ gas tanpa perlu penjelasan konsep dulu (beda dari Neraca kemarin).
       `isBalanced: true` → cross-check independen: saldo Kas+Bank
       aktual dari `GET accounts` persis 6.300.000, cocok 100% sama
       `endingCash`; data uji dibersihkan
+
+## Fase 88 — Rasio Keuangan (Financial Health Ratios)
+
+Trio laporan keuangan (Laba Rugi, Neraca, Arus Kas) sekarang lengkap, jadi
+fondasi buat fitur pertama yang kasih INTERPRETASI angka, bukan cuma
+angka mentah — selaras visi awal user "bantu perusahaan generate laporan
+keuangan tanpa harus dihitung sama akuntan".
+
+- [x] **Refactor "Rule of Three" — `lib/business/reports.ts` (baru)**:
+      ekstrak `computeIncomeStatement`/`computeBalanceSheet`/
+      `computeCashFlow` + `defaultFiscalYearRange`/`endOfTodayWIB`/
+      `isCashAccount` dari 3 route yang sudah ada (murni pindah lokasi,
+      LOGIC TIDAK DIUBAH) — dipicu karena Rasio Keuangan butuh compute
+      ketiganya SEKALIGUS, duplikasi ke-4 (termasuk helper WIB-boundary
+      yang sudah pernah nimbulin bug di Fase 81) sudah tidak masuk akal.
+      3 route lama (`income-statement`, `balance-sheet`, `cash-flow`)
+      di-refactor jadi tipis: cuma auth + parsing query param + panggil
+      fungsi compute. **Regression-tested WAJIB** sebelum lanjut: re-run
+      skenario 6-jurnal yang sama persis dipakai Fase 87 (setor modal,
+      penjualan, bayar sewa, prive, transfer antar-kas, akrual) lewat
+      ketiga endpoint — response JSON identik sama sebelum refactor
+- [x] `app/api/business/companies/[id]/reports/financial-ratios/route.ts`
+      (baru) — panggil ketiga fungsi compute PARALEL (`Promise.all`,
+      tanpa HTTP round-trip), hitung 5 rasio: Margin Laba Kotor, Margin
+      Laba Bersih, Rasio Kas (Kas+Bank ÷ Utang), Rasio Utang terhadap
+      Modal, Ketahanan Kas (cash runway bulan, cuma dihitung kalau arus
+      kas operasi rata-rata per bulan negatif — kalau positif, `null`
+      berarti "sehat, tidak relevan dihitung"). Tiap rasio (kecuali
+      Margin Laba Kotor, sengaja tanpa verdict karena threshold-nya
+      terlalu bervariasi antar industri buat digeneralisir) dapat
+      verdict `sehat`/`perhatian`/`kritis` dihitung SERVER-SIDE pakai
+      threshold sederhana yang didokumentasikan sebagai heuristik umum
+- [x] **Bug ditemukan & diperbaiki lewat testing edge-case (bukan lewat
+      screenshot user)**: company baru yang belum ada transaksi sama
+      sekali (modal=0, utang=0) awalnya nampilin verdict Rasio Utang
+      "Kritis" — technically benar secara matematika (`equityTotal <= 0`)
+      tapi menyesatkan (perusahaan baru bukan berarti "krisis keuangan").
+      Diperbaiki: `debtToEquityVerdict` sekarang cek `liabilitiesTotal`
+      DULU — tidak ada utang sama sekali → selalu "sehat" apapun kondisi
+      modalnya, "kritis" cuma valid kalau ADA utang yang harus dilunasi
+      tapi modalnya tidak cukup (insolven beneran). Diverifikasi 2 kasus
+      terpisah: company kosong → "sehat" (bukan lagi "kritis"); company
+      dengan utang 500rb & modal -400rb (beneran insolven) → tetap
+      "kritis" (regresi tidak menghilangkan sinyal asli)
+- [x] `.../reports/financial-ratios/page.tsx` (baru) — 5 Card, tiap Card:
+      angka besar + badge verdict warna (emerald/amber/red) + 1-2 kalimat
+      penjelasan non-jargon (mis. "Kalau semua utang usaha ditagih
+      sekarang juga, berapa persen yang bisa langsung dilunasi pakai Kas
+      & Bank yang ada"), plus disclaimer card "panduan umum, bukan
+      pengganti nasihat akuntan profesional"
+- [x] Dashboard teaser — `.../dashboard/page.tsx` (diubah): 1 Card kecil
+      "Kesehatan Keuangan" (cuma Margin Laba Bersih + verdict badge,
+      BUKAN kelima rasio) yang bisa diklik ke halaman penuh — pola sama
+      "Beban Terbesar"/"Beban Berulang Aktif" yang sudah ada
+- [x] Nav — item baru "Rasio Keuangan" (icon `HeartPulse`) di grup
+      "Laporan" desktop (`components/business/business-shell.tsx`, jadi
+      4 item), `MORE_MENU_SUFFIXES`/`SECONDARY_PAGE_TITLES` mobile,
+      `.../more/page.tsx` (menu item), `.../panduan/page.tsx` (FAQ baru
+      jelasin apa itu Rasio Keuangan & kenapa verdict-nya bukan audit
+      resmi)
+- [x] tsc, eslint bersih; `pnpm build` sukses (`/business/[companyId]/
+      reports/financial-ratios` masuk daftar route)
+- [x] Verifikasi fungsional lewat curl:
+      - Regression check refactor: skenario 6-jurnal Fase 87 di-replay
+        ke `income-statement`/`balance-sheet`/`cash-flow` → semua angka
+        identik (operatingRevenue 2jt, netIncome 1,2jt, assets.total
+        6,3jt, isBalanced true di kedua laporan, dst) — refactor terbukti
+        murni pemindahan logic
+      - Rasio dari data yang sama: `grossProfitMargin` 100%,
+        `netProfitMargin` 60%, `cashRatio` 2100% (21.0), `debtToEquityRatio`
+        5% (0.05), `cashRunwayMonths` null (arus kas operasi positif),
+        semua verdict "sehat" — cocok hitungan manual
+      - Edge case company kosong (0 transaksi): tidak crash, margin/rasio
+        semuanya `null`, verdict `debtToEquityRatio` "sehat" (bukan
+        "kritis", konfirmasi fix bug di atas)
+      - Edge case insolven beneran (utang 500rb, modal -400rb): verdict
+        `debtToEquityRatio` tetap "kritis" (regresi tidak menghilangkan
+        sinyal asli)
+      - Data uji (2 company, akun, jurnal) dibersihkan

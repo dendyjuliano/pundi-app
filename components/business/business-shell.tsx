@@ -13,6 +13,7 @@ import {
   FileBarChart,
   Scale,
   Waves,
+  HeartPulse,
   Settings,
   ChevronDown,
   ArrowLeft,
@@ -66,6 +67,7 @@ function navGroups(companyId: string): NavGroup[] {
         { href: `/business/${companyId}/reports/income-statement`, label: "Laporan Laba Rugi", icon: FileBarChart },
         { href: `/business/${companyId}/reports/balance-sheet`, label: "Neraca", icon: Scale },
         { href: `/business/${companyId}/reports/cash-flow`, label: "Arus Kas", icon: Waves },
+        { href: `/business/${companyId}/reports/financial-ratios`, label: "Rasio Keuangan", icon: HeartPulse },
       ],
     },
     {
@@ -99,6 +101,7 @@ const MORE_MENU_SUFFIXES = [
   "/accounts",
   "/reports/balance-sheet",
   "/reports/cash-flow",
+  "/reports/financial-ratios",
   "/settings",
   "/panduan",
 ];
@@ -111,6 +114,7 @@ const SECONDARY_PAGE_TITLES: { suffix: string; label: string }[] = [
   { suffix: "/accounts", label: "Akun" },
   { suffix: "/reports/balance-sheet", label: "Neraca" },
   { suffix: "/reports/cash-flow", label: "Arus Kas" },
+  { suffix: "/reports/financial-ratios", label: "Rasio Keuangan" },
   { suffix: "/settings", label: "Pengaturan" },
   { suffix: "/panduan", label: "Panduan" },
 ];

@@ -148,6 +148,11 @@ export default function BusinessPanduanPage() {
         'Laba Rugi bisa "untung" di atas kertas walau Kas-nya belum tentu bertambah (mis. jual barang tapi belum dibayar customer — itu Piutang, bukan Kas). Arus Kas fokus KHUSUS ke pergerakan Kas & Bank beneran selama satu periode, dipecah 3 bagian: Aktivitas Operasi (dari jualan/beban sehari-hari), Aktivitas Investasi (beli/jual aset — belum ada modul-nya di Pundi Business, jadi selalu Rp0 dulu), dan Aktivitas Pendanaan (modal masuk dari pemilik, atau prive). Kalau Laba Rugi bagus tapi Arus Kas negatif, itu tanda uang kamu "tertahan" di Piutang/Persediaan — sinyal penting yang tidak kelihatan dari Laba Rugi doang.',
     },
     {
+      question: "Apa itu Rasio Keuangan dan kenapa ada label Sehat/Perlu Perhatian/Kritis?",
+      answer:
+        'Rasio Keuangan itu angka-angka dari Laba Rugi, Neraca, dan Arus Kas yang digabung jadi 5 indikator gampang dibaca — mis. "dari tiap Rp100.000 penjualan, berapa yang jadi untung bersih" atau "kalau tidak ada pemasukan lagi, bisnis ini tahan berapa lama". Labelnya (Sehat/Perlu Perhatian/Kritis) itu panduan umum berdasarkan aturan sederhana, BUKAN audit resmi — tetap perlu dicek ke akuntan/konsultan keuangan buat keputusan besar (pinjaman bank, investasi, dll). Tujuannya cuma kasih gambaran cepat, bukan gantiin penilaian profesional sepenuhnya.',
+    },
+    {
       question: "Siapa saja yang bisa lihat data perusahaan ini?",
       answer:
         "Cuma anggota yang sudah diundang lewat halaman Pengaturan (owner/akuntan/staff). Ini domain data yang benar-benar terpisah dari akun personal Pundi — perusahaan lain atau keluarga Pundi-mu tidak bisa mengaksesnya sama sekali.",

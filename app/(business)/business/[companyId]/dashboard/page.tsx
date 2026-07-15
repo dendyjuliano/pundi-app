@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { TrendingUp, TrendingDown, PlusCircle, AlertTriangle, Info, Repeat } from "lucide-react";
+import { TrendingUp, TrendingDown, PlusCircle, AlertTriangle, Info, Repeat, HeartPulse } from "lucide-react";
 import { formatRupiah } from "@/lib/format";
 import {
   Card,
@@ -28,6 +28,18 @@ type IncomeStatement = {
 };
 
 type SubscriptionStatus = "trial" | "active" | "pending_verification" | "overdue";
+
+type Verdict = "sehat" | "perhatian" | "kritis";
+type Ratios = {
+  netProfitMargin: number | null;
+  verdicts: { netProfitMargin: Verdict };
+};
+
+const VERDICT_BADGE: Record<Verdict, { label: string; className: string }> = {
+  sehat: { label: "Sehat", className: "bg-emerald-100 text-emerald-800" },
+  perhatian: { label: "Perlu Perhatian", className: "bg-amber-100 text-amber-800" },
+  kritis: { label: "Kritis", className: "bg-red-100 text-red-800" },
+};
 
 type RecurringExpense = {
   _id: string;
@@ -54,6 +66,7 @@ export default function BusinessDashboardPage() {
   const [report, setReport] = useState<IncomeStatement | null>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [recurring, setRecurring] = useState<RecurringExpense[] | null>(null);
+  const [ratios, setRatios] = useState<Ratios | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -75,6 +88,15 @@ export default function BusinessDashboardPage() {
     (async () => {
       const res = await fetch(`/api/business/companies/${companyId}/recurring-expenses`);
       if (res.ok) setRecurring(await res.json());
+    })();
+  }, [companyId]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(
+        `/api/business/companies/${companyId}/reports/financial-ratios`
+      );
+      if (res.ok) setRatios(await res.json());
     })();
   }, [companyId]);
 
@@ -155,6 +177,29 @@ export default function BusinessDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {ratios && (
+        <Link href={`/business/${companyId}/reports/financial-ratios`}>
+          <Card className="hover:bg-muted/40 transition-colors">
+            <CardContent className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
+                  <HeartPulse className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Kesehatan Keuangan</p>
+                  <p className="text-xs text-muted-foreground">
+                    Margin Laba Bersih {ratios.netProfitMargin === null ? "—" : `${(ratios.netProfitMargin * 100).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`}
+                  </p>
+                </div>
+              </div>
+              <Badge className={`${VERDICT_BADGE[ratios.verdicts.netProfitMargin].className} shrink-0`}>
+                {VERDICT_BADGE[ratios.verdicts.netProfitMargin].label}
+              </Badge>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <Card>
